@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
+const compile=p=>ts.transpileModule(readFileSync(new URL('../'+p,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+const core=url(compile('lib/architecture/core.ts'));
+const agent=url(compile('lib/agent/core.ts'));
+const store=url(compile('lib/agent/store.ts').replace("'./core'",JSON.stringify(agent)));
+const rows=new Map();
+const db={prepare(sql){return {bind(...args){return {async first(){return rows.get(args[0])||null},async run(){if(sql.startsWith('INSERT')){if(rows.has(args[0]))return {meta:{changes:0}};rows.set(args[0],{payload:args[1],revision:1});}else{const row=rows.get(args[1]);if(!row||row.revision!==args[2])return {meta:{changes:0}};rows.set(args[1],{payload:args[0],revision:row.revision+1});}return {meta:{changes:1}}}}}}}};
+globalThis.__architectureTestEnv={DB:db};
+const source=compile('app/api/architecture/route.ts').replace(/import \{ env \} from 'cloudflare:workers';/,'const env = globalThis.__architectureTestEnv;').replace("'../../../lib/agent/store'",JSON.stringify(store)).replace("'../../../lib/architecture/core'",JSON.stringify(core));
+const {GET,PUT}=await import(url(source));const {defaults,normalize}=await import(core);
+const request=(method,uid,body,origin)=>new Request('https://test.invalid/api/architecture?project=ybirds',{method,headers:{...(uid?{'oai-authenticated-user-id':uid}:{}),...(origin?{origin}:{}),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+assert.equal((await GET(request('GET'))).status,401);
+assert.equal((await PUT(request('PUT','alice',{project:'ybirds',revision:0,data:defaults()},'https://other.invalid'))).status,403);
+let r=await PUT(request('PUT','alice',{project:'ybirds',revision:0,data:defaults()}));assert.equal(r.status,200);assert.equal((await r.json()).revision,1);
+assert.equal((await PUT(request('PUT','alice',{project:'ybirds',revision:0,data:defaults()}))).status,409);
+let a=await (await GET(request('GET','alice'))).json();assert.equal(a.revision,1);assert.equal(a.data.history.length,1);
+let b=await (await GET(request('GET','bob'))).json();assert.equal(b.revision,0);
+assert.equal((await GET(new Request('https://test.invalid/api/architecture?project=unknown',{headers:{'oai-authenticated-user-id':'alice'}}))).status,400);
+for(const mutate of [d=>d.nodes.push(d.nodes[0]),d=>d.routes[0].node='other',d=>d.routes[1].role=d.routes[0].role,d=>d.nodes[1].region='UK',d=>d.routes[0].dataScope='global',d=>d.routes[0].model='Bearer secret-test']){const x=defaults();mutate(x);assert.throws(()=>normalize(x));}
+assert.equal(normalize({...defaults(),history:[{message:'forged'}]}).history,undefined);
+console.log('Architecture: authentication, cross-origin rejection, persisted roundtrip, user isolation, unknown project, stale revision and configuration validation passed.');

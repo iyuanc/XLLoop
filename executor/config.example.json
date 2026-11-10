@@ -1,0 +1,16 @@
+{
+  "projects": {
+    "ybirds": {
+      "cwd": "/absolute/path/to/isolated/ybirds-worktree",
+      "repo": "Fill the exact authorized repository and branch scope",
+      "environment": "Fill the exact allowed environment",
+      "analytics": "Fill the exact allowed data source",
+      "cdn": "Fill the exact allowed CDN scope",
+      "channels": "Fill the exact authorized channels",
+      "max_cost_per_job": 20,
+      "timeout_seconds": 300,
+      "env_allowlist": [],
+      "tasks": {}
+    }
+  }
+}

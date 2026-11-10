@@ -1,0 +1,5 @@
+import {ensureEvolution} from './evolution';
+import {defaults} from './core';
+export async function readAuto(db:any,project:string){const row=await db.prepare('SELECT payload,revision FROM autonomy_state WHERE id=?').bind(project).first();const result=row?{data:JSON.parse(row.payload),revision:row.revision}:{data:defaults(project),revision:0};ensureEvolution(result.data);return result;}
+export async function saveAuto(db:any,project:string,data:any,revision:number){const r=revision===0?await db.prepare('INSERT OR IGNORE INTO autonomy_state (id,payload,revision,lease_until) VALUES (?,?,1,0)').bind(project,JSON.stringify(data)).run():await db.prepare('UPDATE autonomy_state SET payload=?,revision=revision+1 WHERE id=? AND revision=?').bind(JSON.stringify(data),project,revision).run();if(!r.meta.changes)throw Error('CONFLICT');return revision+1;}
+export async function lease(db:any,project:string){const now=Date.now();const r=await db.prepare('UPDATE autonomy_state SET lease_until=? WHERE id=? AND lease_until<?').bind(now+120000,project,now).run();return !!r.meta.changes;}
