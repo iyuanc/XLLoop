@@ -19,6 +19,7 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/xlloop /srv/xlloop/worktrees
+ReadOnlyPaths=-/srv/xlloop/analytics
 UMask=0077
 
 [Install]

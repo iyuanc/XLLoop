@@ -9,8 +9,23 @@
       "channels": "Fill the exact authorized channels",
       "max_cost_per_job": 20,
       "timeout_seconds": 300,
-      "env_allowlist": [],
-      "tasks": {}
+      "env_allowlist": [
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "OPENAI_INPUT_USD_PER_1M",
+        "OPENAI_OUTPUT_USD_PER_1M",
+        "OPENAI_CACHED_INPUT_USD_PER_1M",
+        "OPENAI_TIMEOUT_SECONDS",
+        "XLLOOP_ANALYTICS_FILE"
+      ],
+      "tasks": {
+        "analysis": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/openai_analysis.py"
+          ]
+        }
+      }
     }
   }
 }
