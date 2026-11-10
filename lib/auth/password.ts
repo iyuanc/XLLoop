@@ -13,7 +13,7 @@ function derive(password:string,salt:Buffer,{N=DEFAULT_N,r=DEFAULT_R,p=DEFAULT_P
 }
 
 export function validatePassword(password:unknown){
-  if(typeof password!=='string'||password.length<12)throw new Error('密码至少需要12个字符');
+  if(typeof password!=='string'||password.length<6)throw new Error('密码至少需要6个字符');
   if(password.length>200)throw new Error('密码不能超过200个字符');
   return password;
 }

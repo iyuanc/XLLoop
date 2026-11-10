@@ -1,8 +1,10 @@
+const path = require("node:path");
+
 module.exports = {
   apps: [
     {
       name: "xlloop-web",
-      cwd: "/opt/xlloop/app/current",
+      cwd: path.resolve(__dirname, ".."),
       script: ".next/standalone/server.js",
       interpreter: "node",
       node_args: "--env-file=/etc/xlloop/app.env",

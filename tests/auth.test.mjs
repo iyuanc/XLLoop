@@ -34,7 +34,7 @@ const initialHash=await passwords.hashPassword(initialPassword,{N:16384});
 assert.match(initialHash,/^scrypt\$16384\$8\$1\$/);
 assert.equal(await passwords.verifyPassword(initialPassword,initialHash),true);
 assert.equal(await passwords.verifyPassword('wrong-password-2026',initialHash),false);
-await assert.rejects(()=>passwords.hashPassword('too-short'),/至少需要12个字符/);
+await assert.rejects(()=>passwords.hashPassword('short'),/至少需要6个字符/);
 
 await DB.prepare('INSERT INTO auth_users(id,email,name,password_hash,enabled,must_change_password,failed_attempts,created_at,updated_at) VALUES (?,?,?,?,1,1,0,?,?)')
   .bind('11111111-1111-4111-8111-111111111111','owner@example.test','Owner',initialHash,new Date(),new Date()).run();

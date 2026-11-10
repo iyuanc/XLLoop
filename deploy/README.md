@@ -1,5 +1,14 @@
 # XLLoop CentOS self-hosted deployment
 
+For routine deployments after the one-time server setup, run the root-level
+script as root. It detects the project directory automatically, installs from
+the lockfile, builds, restarts PM2, saves its process list, and checks port
+3100:
+
+```bash
+bash deploy.sh
+```
+
 This deployment runs the web application as a single Node.js process managed by
 PM2. Nginx terminates HTTPS and proxies only to `127.0.0.1:3100`. The Python
 executor listens only on `127.0.0.1:8788`. MySQL must not expose port 3306 to

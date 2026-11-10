@@ -13,7 +13,7 @@ function usage(){
 function required(name){const value=process.env[name]?.trim();if(!value)throw new Error(`缺少环境变量 ${name}`);return value;}
 function numberEnv(name,fallback){const value=process.env[name];return value?Number(value):fallback;}
 function normalizeEmail(value){return String(value||'').trim().toLowerCase();}
-function password(){const value=required('XLLOOP_ADMIN_PASSWORD');if(value.length<12||value.length>200)throw new Error('XLLOOP_ADMIN_PASSWORD 必须为 12–200 个字符');return value;}
+function password(){const value=required('XLLOOP_ADMIN_PASSWORD');if(value.length<6||value.length>200)throw new Error('XLLOOP_ADMIN_PASSWORD 必须为 6–200 个字符');return value;}
 function hashPassword(value){return new Promise((resolve,reject)=>{const salt=randomBytes(16);nodeScrypt(value,salt,64,{N:131072,r:8,p:1,maxmem:256*1024*1024},(error,key)=>error?reject(error):resolve(`scrypt$131072$8$1$${salt.toString('base64url')}$${key.toString('base64url')}`));});}
 
 if(!['create-owner','create-user','reset-owner-password','reset-password'].includes(command))usage();
