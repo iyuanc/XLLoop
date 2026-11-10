@@ -13,7 +13,7 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-for command_name in node pnpm pm2 runuser curl; do
+for command_name in git node pnpm pm2 runuser curl; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "错误：缺少命令 ${command_name}" >&2
     exit 1
@@ -38,15 +38,29 @@ fi
 PNPM_BIN="$(command -v pnpm)"
 PM2_BIN="$(command -v pm2)"
 
-echo "[1/5] 准备目录和权限"
+if [[ ! -d "${APP_DIR}/.git" ]]; then
+  echo "错误：${APP_DIR} 不是 Git 仓库，无法更新 master 代码" >&2
+  exit 1
+fi
+
+CURRENT_BRANCH="$(git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" branch --show-current)"
+if [[ "${CURRENT_BRANCH}" != "master" ]]; then
+  echo "错误：当前分支是 ${CURRENT_BRANCH:-未知}，请切换到 master 后再部署" >&2
+  exit 1
+fi
+
+echo "[1/6] 拉取 master 最新代码"
+git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" pull --ff-only origin master
+
+echo "[2/6] 准备目录和权限"
 install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 /var/log/xlloop
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
-echo "[2/5] 安装依赖"
+echo "[3/6] 安装依赖"
 runuser -u "${APP_USER}" -- env HOME="${APP_HOME}" \
   "${PNPM_BIN}" --dir "${APP_DIR}" install --frozen-lockfile
 
-echo "[3/5] 构建生产版本"
+echo "[4/6] 构建生产版本"
 runuser -u "${APP_USER}" -- env HOME="${APP_HOME}" \
   "${PNPM_BIN}" --dir "${APP_DIR}" build
 
@@ -55,11 +69,11 @@ if [[ ! -f "${APP_DIR}/.next/standalone/server.js" ]]; then
   exit 1
 fi
 
-echo "[4/5] 启动或重启 PM2"
+echo "[5/6] 启动或重启 PM2"
 runuser -u "${APP_USER}" -- env HOME="${APP_HOME}" \
   "${PM2_BIN}" startOrRestart "${PM2_CONFIG}" --update-env
 
-echo "[5/5] 检查本机服务"
+echo "[6/6] 检查本机服务"
 for attempt in {1..15}; do
   if curl --fail --silent --show-error --head \
     http://127.0.0.1:3100/login >/dev/null 2>&1; then
