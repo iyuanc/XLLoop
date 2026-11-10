@@ -1,6 +1,7 @@
 import {profile,shapePlan} from '../../../lib/organization/core';
 import {workspace} from '../../../lib/access/store';
 import {guard} from '../../../lib/access/guard';
+import {isSameOrigin} from '../../../lib/http/origin';
 import {env} from '../../../lib/runtime/env';
 import {read,write,validProject} from '../../../lib/agent/store';
 import {plan,current,audit,log,preflight,consumeResult,scopes,Run} from '../../../lib/agent/core';
@@ -11,7 +12,7 @@ const clean=(v:any,n=3000)=>typeof v==='string'?v.trim().slice(0,n):'';
 async function handleGET(req:Request){try{const p=new URL(req.url).searchParams.get('project');const uid=await identity(req,p);const saved=await read(env.DB,uid,p!);return json(saved);}catch(e:any){return json({error:e.message==='AUTH'?'请登录后使用执行系统':'项目不可用'},e.message==='AUTH'?401:400)}}
 async function handlePOST(req:Request){
  try{
- const origin=req.headers.get('origin');if(origin&&origin!==new URL(req.url).origin)return json({error:'跨站请求被拒绝'},403);
+ if(!isSameOrigin(req))return json({error:'跨站请求被拒绝'},403);
  if(Number(req.headers.get('content-length'))>100000)return json({error:'请求过大'},413);
  const b:any=await req.json();if(JSON.stringify(b).length>100000)return json({error:'请求过大'},413);const uid=await identity(req,b.project);const state=await read(env.DB,uid,b.project);if(b.revision!==state.revision)return json({error:'数据已更新，请刷新后重试'},409);let data=state.data;
  if(b.action==='settings'){

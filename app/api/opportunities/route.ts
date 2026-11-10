@@ -6,11 +6,12 @@ import {env} from '../../../lib/runtime/env';
 import {principal,workspace,auditStart,auditEnd,saveWorkspace} from '../../../lib/access/store';
 import {AccessError} from '../../../lib/access/core';
 import {denied} from '../../../lib/access/guard';
+import {isSameOrigin} from '../../../lib/http/origin';
 import {governance,normalize,complete,event,totals,researchProject} from '../../../lib/governance/store';
 import {discover} from '../../../lib/governance/discovery';
 const reply=(b:any)=>Response.json(b,{headers:{'Cache-Control':'private,no-store'}});
 export async function GET(req:Request){try{const p=await principal(req,env);const g=governance(p.workspace);return reply({isOwner:p.isOwner,uid:p.uid,revision:p.workspace.revision,regions:organization(p.workspace.data).regions,opportunities:g.opportunities.filter((o:any)=>canSee(p,o)).map((o:any)=>({...o,canReview:canReview(p,o),approvalCeiling:ceiling(p,o),balance:o.projectId?totals(g,o.projectId):null})),...(p.isOwner?{research:g.research,researchBalance:totals(g,researchProject),events:g.events}: {})});}catch(e){return denied(e);}}
-export async function POST(req:Request){let auditId='';try{if(req.headers.get('origin')&&req.headers.get('origin')!==new URL(req.url).origin)throw new AccessError('跨站请求被拒绝');const raw=await req.text();if(raw.length>30000)throw new AccessError('申请过大',413);const b=JSON.parse(raw);const p=await principal(req,env);const w=p.workspace;const g=governance(w);if(b.revision!==w.revision)throw new AccessError('资料已更新，请刷新后重试',409);
+export async function POST(req:Request){let auditId='';try{if(!isSameOrigin(req))throw new AccessError('跨站请求被拒绝');const raw=await req.text();if(raw.length>30000)throw new AccessError('申请过大',413);const b=JSON.parse(raw);const p=await principal(req,env);const w=p.workspace;const g=governance(w);if(b.revision!==w.revision)throw new AccessError('资料已更新，请刷新后重试',409);
  if(['research','discover'].includes(b.action)&&!p.isOwner)throw new AccessError('仅系统所有者可审批和批准预算');
  if(b.action==='discover'){auditId=await auditStart(env.DB,p.uid,'*','opportunity.discover');const result=await discover(env);await auditEnd(env.DB,auditId,'succeeded');return reply(result);}
  let id=b.id||crypto.randomUUID();const o=g.opportunities.find((x:any)=>x.id===id);const editable=o&&['idea','returned'].includes(o.status)&&(p.isOwner||o.author===p.uid);

@@ -1,4 +1,5 @@
 import {guard} from '../../../lib/access/guard';
+import {isSameOrigin} from '../../../lib/http/origin';
 import {env} from '../../../lib/runtime/env';
 import {validProject} from '../../../lib/agent/store';
 import {defaults,normalize} from '../../../lib/architecture/core';
@@ -8,7 +9,7 @@ async function read(uid:string,project:string){const row=await env.DB!.prepare('
 function fail(e:any){return reply({error:e.message==='AUTH'?'请先登录':e.message},e.message==='AUTH'?401:400);}
 async function handleGET(req:Request){try{const p=new URL(req.url).searchParams.get('project');const uid=await identity(req,p);return reply(await read(uid,p!));}catch(e){return fail(e);}}
 async function handlePUT(req:Request){try{
- const origin=req.headers.get('origin');if(origin&&origin!==new URL(req.url).origin)return reply({error:'跨站请求被拒绝'},403);
+ if(!isSameOrigin(req))return reply({error:'跨站请求被拒绝'},403);
  if(Number(req.headers.get('content-length'))>20000)return reply({error:'配置过大'},413);
  const raw=await req.text();if(raw.length>20000)return reply({error:'配置过大'},413);const b=JSON.parse(raw);const uid=await identity(req,b.project);
  if(!Number.isInteger(b.revision)||b.revision<0)throw Error('版本无效');const next=normalize(b.data);const saved=await read(uid,b.project);if(saved.revision!==b.revision)return reply({error:'配置已更新，请刷新后重试'},409);
