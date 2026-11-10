@@ -1,12 +1,12 @@
 import {isInternal,organization,profile} from '../organization/core';
 import {AccessError,grantFor,assertPermission,withinBudget,assertRecords,allowed} from './core';
-import {principal,auditStart,auditEnd,workspace} from './store';
+import {principal,internalOwnerPrincipal,auditStart,auditEnd,workspace} from './store';
 export function denied(e:any){if(!(e instanceof AccessError))console.error('ACCESS_GUARD_FAILURE',String(e?.name||'Error'),String(e?.message||'unknown').slice(0,500),String(e?.stack||'').slice(0,1500));return Response.json({error:e instanceof AccessError?e.message:'权限校验或审计失败，请重试'},{status:e instanceof AccessError?e.status:503,headers:{'Cache-Control':'private,no-store'}});}
-export async function guard(req:Request,env:any,handler:(req:Request)=>Promise<Response>,actorOverride?:string){let auditId='',actor='',auditProject='*';try{
+export async function guard(req:Request,env:any,handler:(req:Request)=>Promise<Response>,trusted?:{actor:string;ownerId:string}){let auditId='',actor='',auditProject='*';try{
  const url=new URL(req.url),path=url.pathname;const mutate=!['GET','HEAD'].includes(req.method);
  if(mutate){const origin=req.headers.get('origin');if(origin&&origin!==url.origin)throw new AccessError('跨站请求被拒绝');}
  let b:any={};if(mutate){const raw=await req.clone().text();if(raw.length>600000)throw new AccessError('请求过大',413);try{b=JSON.parse(raw)}catch{throw new AccessError('JSON 无效',400);}}
- const p=await principal(req,env),project=mutate?b.project:url.searchParams.get('project');actor=actorOverride||p.uid;auditProject=typeof project==='string'?project:'*';
+ const p=trusted?await internalOwnerPrincipal(env,trusted.ownerId):await principal(req,env),project=mutate?b.project:url.searchParams.get('project');actor=trusted?.actor||p.uid;auditProject=typeof project==='string'?project:'*';
  if(path==='/api/projects'){
   if(mutate&&!p.isOwner)throw new AccessError('只有系统所有者可创建项目');
  }else{if(typeof project!=='string')throw new AccessError('缺少项目',400);const g=grantFor(p,project);assertPermission(g,'read');

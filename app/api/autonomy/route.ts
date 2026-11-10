@@ -1,6 +1,6 @@
 import {guard} from '../../../lib/access/guard';
 import {addExperiment,evaluate,ruleAction,intervention} from '../../../lib/autonomy/evolution';
-import {env} from 'cloudflare:workers';
+import {env} from '../../../lib/runtime/env';
 import {readAuto,saveAuto} from '../../../lib/autonomy/store';
 import {normalizeConfig,event} from '../../../lib/autonomy/core';
 import {validProject} from '../../../lib/agent/store';

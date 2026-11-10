@@ -4,6 +4,7 @@ Fixed, administrator-configured agent commands receive job JSON on stdin.
 No command text from an HTTP request is evaluated as a shell command.
 """
 import argparse, concurrent.futures, hmac, json, os, re, signal, sqlite3, subprocess, threading, time
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
@@ -23,7 +24,12 @@ class Gateway:
    db.execute('CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project TEXT NOT NULL, status TEXT NOT NULL, request TEXT NOT NULL, result TEXT, created REAL NOT NULL)')
    # A restart cannot establish whether an external operation actually completed.
    db.execute("UPDATE jobs SET status='unknown' WHERE status IN ('queued','running')")
- def connect(self): return sqlite3.connect(self.database, timeout=20)
+ @contextmanager
+ def connect(self):
+  db=sqlite3.connect(self.database, timeout=20)
+  try:
+   with db: yield db
+  finally: db.close()
  def project(self, project):
   p=self.config.get('projects',{}).get(project)
   if not p: raise ValueError('Project is not authorized')

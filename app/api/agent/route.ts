@@ -1,7 +1,7 @@
 import {profile,shapePlan} from '../../../lib/organization/core';
 import {workspace} from '../../../lib/access/store';
 import {guard} from '../../../lib/access/guard';
-import {env} from 'cloudflare:workers';
+import {env} from '../../../lib/runtime/env';
 import {read,write,validProject} from '../../../lib/agent/store';
 import {plan,current,audit,log,preflight,consumeResult,scopes,Run} from '../../../lib/agent/core';
 import {capabilities,runner} from '../../../lib/agent/runner';
@@ -70,5 +70,5 @@ export async function GET(req:Request){return guard(req,env,handleGET);}
 
 export async function POST(req:Request){return guard(req,env,handlePOST);}
 
-// Internal module call only; no HTTP method exposes the service actor override.
-export async function autonomousAction(req:Request){return guard(req,env,handlePOST,'service:autonomy');}
+// Internal module call only; no HTTP method exposes this trusted owner context.
+export async function autonomousAction(req:Request,ownerId:string){return guard(req,env,handlePOST,{actor:'service:autonomy',ownerId});}

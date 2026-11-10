@@ -1,0 +1,16 @@
+[Unit]
+Description=Advance one bounded XLLoop background heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=xlloop
+Group=xlloop
+EnvironmentFile=/etc/xlloop/app.env
+ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 900 --request POST --header "Content-Type: application/json" --header "X-XLLoop-Service-Key: ${XLLOOP_SERVICE_KEY}" --data '{"action":"tick"}' http://127.0.0.1:3100/api/autonomy/service
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+

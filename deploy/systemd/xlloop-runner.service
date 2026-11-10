@@ -1,0 +1,25 @@
+[Unit]
+Description=XLLoop Agent Executor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xlloop
+Group=xlloop
+WorkingDirectory=/opt/xlloop/runner
+EnvironmentFile=/etc/xlloop/runner.env
+ExecStart=/usr/bin/env python3.14 /opt/xlloop/runner/runner.py --config /etc/xlloop/runner-config.json --db /var/lib/xlloop/jobs.sqlite --host 127.0.0.1 --port 8788
+Restart=on-failure
+RestartSec=3s
+KillMode=control-group
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/xlloop /srv/xlloop/worktrees
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

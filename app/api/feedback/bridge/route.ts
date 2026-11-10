@@ -1,4 +1,4 @@
-import {env} from 'cloudflare:workers';
+import {env} from '../../../../lib/runtime/env';
 import {workspace} from '../../../../lib/access/store';
 import {AccessError} from '../../../../lib/access/core';
 import {denied} from '../../../../lib/access/guard';

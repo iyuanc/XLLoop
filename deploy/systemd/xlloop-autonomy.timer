@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the XLLoop background heartbeat hourly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+AccuracySec=1min
+Persistent=true
+Unit=xlloop-autonomy.service
+
+[Install]
+WantedBy=timers.target

@@ -1,4 +1,4 @@
-import {env} from 'cloudflare:workers';
+import {env} from '../../../lib/runtime/env';
 import {principal,auditStart,auditEnd,saveWorkspace} from '../../../lib/access/store';
 import {AccessError,grantFor,assertPermission,allowed} from '../../../lib/access/core';
 import {denied} from '../../../lib/access/guard';

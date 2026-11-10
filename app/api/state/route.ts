@@ -1,5 +1,5 @@
 import {guard} from '../../../lib/access/guard';
-import { env } from 'cloudflare:workers';
+import { env } from '../../../lib/runtime/env';
 import {validProject as validProjectId} from '../../../lib/agent/store';
 const validProject=(uid:string,id:any)=>validProjectId(env.DB,uid,id);
 function invalid(data:any):string|null{
@@ -27,5 +27,7 @@ async function handlePUT(req:Request){
 }
 
 export async function GET(req:Request){return guard(req,env,handleGET);}
+
+export async function internalGET(req:Request,ownerId:string){return guard(req,env,handleGET,{actor:'service:health',ownerId});}
 
 export async function PUT(req:Request){return guard(req,env,handlePUT);}

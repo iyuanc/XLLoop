@@ -1,6 +1,6 @@
 import {organization,profile,canSee,canReview,assertFunding} from '../../../lib/organization/core';
 import {summary as feedbackSummary} from '../../../lib/feedback/store';
-import {env} from 'cloudflare:workers';
+import {env} from '../../../lib/runtime/env';
 import {principal} from '../../../lib/access/store';
 import {allowed,grantFor} from '../../../lib/access/core';
 import {denied} from '../../../lib/access/guard';
