@@ -2,7 +2,7 @@ import {assertInternalDispatch} from '../organization/delivery';
 import {reserve,settle} from '../governance/store';
 export async function runner(env:any,path:string,body?:any){
  if(!env.XLLOOP_RUNNER_URL||!env.XLLOOP_RUNNER_TOKEN)throw Error('尚未连接 Agent 执行器；请配置服务端 XLLOOP_RUNNER_URL 与 XLLOOP_RUNNER_TOKEN');
- const base=new URL(env.XLLOOP_RUNNER_URL);if(base.protocol!=='https:'||base.username||base.password||base.search||base.hash)throw Error('执行器必须使用无查询参数的 HTTPS 地址');
+ const base=new URL(env.XLLOOP_RUNNER_URL),loopback=['127.0.0.1','[::1]','localhost'].includes(base.hostname),secure=base.protocol==='https:'||(base.protocol==='http:'&&loopback);if(!secure||base.username||base.password||base.search||base.hash)throw Error('执行器必须使用无查询参数的 HTTPS 地址；仅本机回环地址允许 HTTP');
  const url=new URL(base.toString().replace(/\/$/,'')+path);
  if(body&&path==='/v1/jobs'){try{await assertInternalDispatch(env,body);await reserve(env,body);}catch(e:any){e.budgetDenied=true;throw e;}}
  const r=await fetch(url,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+env.XLLOOP_RUNNER_TOKEN,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(12000),redirect:'error'});

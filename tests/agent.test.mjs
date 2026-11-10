@@ -18,7 +18,7 @@ b=await act('create',{command:'Test run',scope:'full',budget:20,requestId:'same-
 await act('start');b=await act('advance');assert.equal(b.data.runs[0].tasks[0].status,'completed');
 b=await act('advance');assert.equal(b.data.runs[0].status,'blocked');assert.equal(jobCalls,0);
 assert.ok((await get('different')).error);assert.equal((await get('owner','ukec')).data.runs.length,0);
-env.XLLOOP_RUNNER_URL='https://runner.test';env.XLLOOP_RUNNER_TOKEN='test-secret';await act('resume');
+env.XLLOOP_RUNNER_URL='http://runner.test';env.XLLOOP_RUNNER_TOKEN='test-secret';b=await act('check');assert.equal(b.data.connection.connected,false);assert.match(b.data.connection.message,/仅本机回环地址允许 HTTP/);env.XLLOOP_RUNNER_URL='http://127.0.0.1:8788';b=await act('check');assert.equal(b.data.connection.connected,true);await act('resume');
 for(let i=0;i<6;i++)await act('advance');b=await get();assert.equal(b.data.runs[0].tasks[6].status,'completed');
 const beforeGate=jobCalls;b=await act('advance');assert.equal(b.data.runs[0].status,'awaiting_approval');assert.equal(jobCalls,beforeGate);
 await act('reject');b=await act('resume');b=await act('advance');assert.equal(b.data.runs[0].status,'awaiting_approval');await act('approve');await act('advance');assert.equal(jobCalls,beforeGate+1);
