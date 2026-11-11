@@ -1,4 +1,15 @@
 {
+  "provisioning": {
+    "enabled": true,
+    "worktree_root": "/srv/xlloop/worktrees",
+    "allowed_git_hosts": [
+      "gitlab.ybirds.cn"
+    ],
+    "publish_enabled": true,
+    "commit_name": "XLLoop Automation",
+    "commit_email": "xlloop@localhost",
+    "template_project": "ybirds"
+  },
   "projects": {
     "ybirds": {
       "cwd": "/absolute/path/to/isolated/ybirds-worktree",
@@ -16,13 +27,81 @@
         "OPENAI_OUTPUT_USD_PER_1M",
         "OPENAI_CACHED_INPUT_USD_PER_1M",
         "OPENAI_TIMEOUT_SECONDS",
-        "XLLOOP_ANALYTICS_FILE"
+        "XLLOOP_ANALYTICS_FILE",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_VERSION",
+        "CLAUDE_MODEL",
+        "CLAUDE_INPUT_USD_PER_1M",
+        "CLAUDE_OUTPUT_USD_PER_1M",
+        "CLAUDE_CACHE_READ_USD_PER_1M",
+        "CLAUDE_CACHE_WRITE_USD_PER_1M",
+        "CLAUDE_MAX_OUTPUT_TOKENS",
+        "CLAUDE_TIMEOUT_SECONDS",
+        "CLAUDE_MAX_AGENT_STEPS",
+        "CLAUDE_SPEC_MODEL",
+        "CLAUDE_SPEC_INPUT_USD_PER_1M",
+        "CLAUDE_SPEC_OUTPUT_USD_PER_1M",
+        "CLAUDE_SPEC_CACHE_READ_USD_PER_1M",
+        "CLAUDE_SPEC_CACHE_WRITE_USD_PER_1M",
+        "CLAUDE_SPEC_MAX_OUTPUT_TOKENS",
+        "CLAUDE_DEVELOP_MODEL",
+        "CLAUDE_DEVELOP_INPUT_USD_PER_1M",
+        "CLAUDE_DEVELOP_OUTPUT_USD_PER_1M",
+        "CLAUDE_DEVELOP_CACHE_READ_USD_PER_1M",
+        "CLAUDE_DEVELOP_CACHE_WRITE_USD_PER_1M",
+        "CLAUDE_DEVELOP_MAX_OUTPUT_TOKENS",
+        "CLAUDE_REVIEW_MODEL",
+        "CLAUDE_REVIEW_INPUT_USD_PER_1M",
+        "CLAUDE_REVIEW_OUTPUT_USD_PER_1M",
+        "CLAUDE_REVIEW_CACHE_READ_USD_PER_1M",
+        "CLAUDE_REVIEW_CACHE_WRITE_USD_PER_1M",
+        "CLAUDE_REVIEW_MAX_OUTPUT_TOKENS",
+        "CLAUDE_RETRO_MODEL",
+        "CLAUDE_RETRO_INPUT_USD_PER_1M",
+        "CLAUDE_RETRO_OUTPUT_USD_PER_1M",
+        "CLAUDE_RETRO_CACHE_READ_USD_PER_1M",
+        "CLAUDE_RETRO_CACHE_WRITE_USD_PER_1M",
+        "CLAUDE_RETRO_MAX_OUTPUT_TOKENS",
+        "XLLOOP_BRANCH_PREFIX",
+        "XLLOOP_ALLOWED_BRANCHES",
+        "XLLOOP_PROTECTED_BRANCHES",
+        "XLLOOP_MAX_CHANGED_FILES",
+        "XLLOOP_MAX_PATCH_BYTES",
+        "XLLOOP_CHECK_COMMANDS_JSON",
+        "XLLOOP_CHECK_TIMEOUT_SECONDS",
+        "XLLOOP_REQUIRED_DEVELOP_CHECKS",
+        "XLLOOP_REQUIRED_REVIEW_CHECKS"
       ],
       "tasks": {
         "analysis": {
           "command": [
             "/usr/bin/python3.14",
             "/opt/xlloop/adapters/openai_analysis.py"
+          ]
+        },
+        "spec": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/claude_code.py"
+          ]
+        },
+        "develop": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/claude_code.py"
+          ]
+        },
+        "review": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/claude_code.py"
+          ]
+        },
+        "retro": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/claude_code.py"
           ]
         }
       }

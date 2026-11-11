@@ -13,7 +13,7 @@ async function handlePUT(req:Request){try{
  if(Number(req.headers.get('content-length'))>20000)return reply({error:'配置过大'},413);
  const raw=await req.text();if(raw.length>20000)return reply({error:'配置过大'},413);const b=JSON.parse(raw);const uid=await identity(req,b.project);
  if(!Number.isInteger(b.revision)||b.revision<0)throw Error('版本无效');const next=normalize(b.data);const saved=await read(uid,b.project);if(saved.revision!==b.revision)return reply({error:'配置已更新，请刷新后重试'},409);
- const data={...next,history:[{at:new Date().toISOString(),message:'保存节点与模型路由规划；未改变执行器授权或运行策略'},...(saved.data.history||[])].slice(0,100)};const id=uid+':architecture:'+b.project;
+ const data={...next,history:[{at:new Date().toISOString(),message:'保存技术规划及仓库清单；仓库只有单独同步成功后才进入执行器授权范围'},...(saved.data.history||[])].slice(0,100)};const id=uid+':architecture:'+b.project;
  const result=b.revision===0?await env.DB!.prepare('INSERT OR IGNORE INTO project_state (id,payload,revision) VALUES (?,?,1)').bind(id,JSON.stringify(data)).run():await env.DB!.prepare('UPDATE project_state SET payload=?,revision=revision+1 WHERE id=? AND revision=?').bind(JSON.stringify(data),id,b.revision).run();
  if(!result.meta.changes)return reply({error:'配置已更新，请刷新后重试'},409);return reply({data,revision:b.revision+1});
  }catch(e){return fail(e);}}

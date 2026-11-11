@@ -7,7 +7,7 @@ export function log(run:Run,message:string,actor='系统'){run.updated=new Date(
 export function plan(command:string,scope:string,budget:number,settings:any,memory:any[],requestId:string):Run{
  const rows:any[]=[['readiness','项目盘点与证据检查','总控',[],false],['analysis','业务数据分析与问题诊断','数据与运营',['model','analytics'],false]];
  if(scope!=='analysis')rows.push(['spec','产品方案、实验与验收规格','产品',['model'],false]);
- if(['preview','full'].includes(scope))rows.push(['develop','AI 开发与隔离分支提交','开发',['model','repository'],false],['review','独立代码审查与安全检查','审查与测试',['model','repository'],false],['test','CI 构建与业务流程测试','审查与测试',['ci'],false],['preview','生成预览与验收报告','发布',['preview'],false]);
+ if(['preview','full'].includes(scope))rows.push(['develop','AI 开发与隔离分支修改','开发',['model','repository'],false],['review','独立代码审查与安全检查','审查与测试',['model','repository'],false],['test','CI 构建与业务流程测试','审查与测试',['ci'],false],['preview','生成预览与验收报告','发布',['preview'],false]);
  if(scope==='full')rows.push(['deploy','灰度部署与上线验证','发布',['deploy'],true],['cdn','CDN 缓存与性能验证','发布',['cdn'],false],['recovery','回滚路径与恢复验证','发布',['rollback'],true],['growth','小范围推广与归因追踪','增长',['marketing'],true],['feedback','A/B 效果、性能与成本评估','效果',['model','analytics'],false],['retro','复盘与下一轮优化建议','效果',['model'],false]);
  const now=new Date().toISOString();const run:Run={id:crypto.randomUUID(),requestId,command,scope,status:'planned',created:now,updated:now,budget,spent:0,iterations:0,maxIterations:settings.maxIterations,maxRetries:settings.maxRetries,version:'v'+now.slice(0,10),settings:structuredClone(settings),memory:structuredClone(memory),tasks:rows.map(([id,name,role,capabilities,gate])=>({id,name,role,capabilities,gate,status:'pending',attempt:0})),events:[]};
  log(run,'已生成规则模板计划；自然语言目标由执行器中的模型进一步理解。当前不是 AI 规划结果。');return run;

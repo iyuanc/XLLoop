@@ -13,7 +13,7 @@ export async function guard(req:Request,env:any,handler:(req:Request)=>Promise<R
  }else{if(typeof project!=='string')throw new AccessError('缺少项目',400);const g=grantFor(p,project);assertPermission(g,'read');
  if(mutate){
   if(path==='/api/state'){const row=await env.DB.prepare('SELECT payload FROM project_state WHERE id=?').bind(p.ownerId+':'+project).first();const before=row?JSON.parse(row.payload):null;if(isInternal(p.workspace.data,project)&&b.data?.records?.some((r:any)=>r.kind==='推广计划'&&JSON.stringify(r)!==JSON.stringify(before?.records?.find((old:any)=>old.id===r.id))))throw new AccessError('内部项目不新增或修改推广计划');if(g.role!=='owner'&&!allowed(g,'record.all')&&b.data){b.data.history=before?.history;assertRecords(g,before,b.data);const changed=(b.data.records||[]).filter((r:any)=>JSON.stringify(r)!==JSON.stringify(before?.records?.find((old:any)=>old.id===r.id)));b.data.history=[...changed.map((r:any)=>({time:new Date().toISOString(),id:r.id,title:r.title,status:r.status,version:r.version,actor:p.uid})),...(b.data.history||[])].slice(0,200);}else assertRecords(g,before,b.data);}
-  else if(path==='/api/architecture')assertPermission(g,'architecture');
+  else if(path==='/api/architecture'||path==='/api/repositories')assertPermission(g,'architecture');
   else if(path==='/api/autonomy'){
    const permissions:any={config:'autonomy.config',start:'autonomy.config',stop:'autonomy.stop',experiment:'experiment',evaluate:'review',rule:'rule',intervention:'experiment'};assertPermission(g,permissions[b.action]||'owner.only');
    if(b.action==='config'){withinBudget(g,b.budgetLimit);if(isInternal(p.workspace.data,project)&&b.config?.autoPublish)throw new AccessError('内部项目不启用推广发布');}

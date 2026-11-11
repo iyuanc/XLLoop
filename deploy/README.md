@@ -82,6 +82,73 @@ Configure a separate worktree and fixed command array for every authorized
 project in `/etc/xlloop/runner-config.json`. Never turn request text into a
 shell command. Keep the runner token identical in both environment files.
 
+For Claude development, prepare `/srv/xlloop/worktrees/ybirds` as an independent
+clone or isolated checkout whose branch starts with `xlloop/`; do not point it
+at `master`. Keep it clean before dispatching a development task. Fill
+`ANTHROPIC_API_KEY`, task-specific model names and current official per-token
+rates in `/etc/xlloop/runner.env`. Configure validation as a fixed JSON argument
+array, for example:
+
+```bash
+XLLOOP_CHECK_COMMANDS_JSON='{"build":["pnpm","build"]}'
+XLLOOP_REQUIRED_DEVELOP_CHECKS=build
+XLLOOP_ALLOWED_BRANCHES=xlloop/ybirds
+```
+
+The bundled adapter can edit only that checkout and cannot commit, push, switch
+branches or deploy. Review is read-only. A separate operator action in the web
+console can commit and push the configured `xlloop/*` branch after inspection;
+merge and deployment remain separate approvals.
+
+### Configure multiple GitLab repositories per project
+
+The project technical console can register more than one repository. Repository
+credentials are not stored in XLLoop: install a read-write GitLab Deploy Key or
+a dedicated service-account SSH key for the `xlloop` operating-system account,
+protect `main` and `master` against direct pushes in GitLab, and verify the SSH
+host key separately. Prefer a service account when audit attribution matters.
+The executor accepts only hosts listed under `provisioning.allowed_git_hosts`
+in `/etc/xlloop/runner-config.json` and writes its dynamic registry to
+`/var/lib/xlloop/projects.json`.
+
+After deploying this version, open the project and use **More → Technical
+configuration → Code repositories**. Add each clone URL, base branch,
+`xlloop/` work branch, access level and check names, save, then select
+**Pull / synchronize to executor**. Check names refer to fixed arrays in
+`XLLOOP_CHECK_COMMANDS_JSON`; they are not shell text supplied by the browser.
+Each checkout is created below:
+
+```text
+/srv/xlloop/worktrees/<project-id>/<repository-id>
+```
+
+The synchronization refuses embedded credentials, unapproved Git hosts,
+protected work branches, mismatched existing remotes and existing checkouts on
+another branch with pending changes. It never deletes a removed checkout
+automatically. After Claude produces a checked diff, enter a one-line Chinese
+commit message and select **Commit and push new branch**. The gateway rechecks
+the exact remote and branch, rejects read-only repositories and existing remote
+branches, creates one commit, and pushes only `HEAD:refs/heads/xlloop/...`.
+It never merges or deploys. For another change cycle, configure a new `xlloop/*`
+branch and synchronize again.
+
+Because the systemd sandbox hides home directories, keep the deploy key and the
+verified GitLab host key outside `/home` and reference them from
+`/etc/xlloop/runner.env`:
+
+```bash
+install -o root -g xlloop -m 640 <deploy-key> /etc/xlloop/gitlab_deploy_key
+install -o root -g xlloop -m 640 <verified-known-hosts> /etc/xlloop/git_known_hosts
+```
+
+```dotenv
+GIT_SSH_COMMAND="/usr/bin/ssh -i /etc/xlloop/gitlab_deploy_key -o IdentitiesOnly=yes -o UserKnownHostsFile=/etc/xlloop/git_known_hosts"
+```
+
+Verify the GitLab SSH fingerprint through your infrastructure process before
+installing `git_known_hosts`; do not accept an unverified key from an automated
+first connection.
+
 ## 4. Build a release
 
 Build in a versioned release directory. `postbuild` copies `public/` and

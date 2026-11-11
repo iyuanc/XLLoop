@@ -72,6 +72,8 @@ with tempfile.TemporaryDirectory() as directory:
             "/usr/bin/python3.14",
             "--adapter",
             "/opt/xlloop/adapters/openai_analysis.py",
+            "--claude-adapter",
+            "/opt/xlloop/adapters/claude_code.py",
         ],
         check=True,
     )
@@ -84,5 +86,14 @@ with tempfile.TemporaryDirectory() as directory:
         "/usr/bin/python3.14",
         "/opt/xlloop/adapters/openai_analysis.py",
     ]
+    assert "ANTHROPIC_API_KEY" in project["env_allowlist"]
+    assert project["tasks"]["develop"]["command"] == [
+        "/usr/bin/python3.14",
+        "/opt/xlloop/adapters/claude_code.py",
+    ]
+    assert project["tasks"]["review"]["command"] == [
+        "/usr/bin/python3.14",
+        "/opt/xlloop/adapters/claude_code.py",
+    ]
 
-print("PASS: missing analytics fails without an OpenAI call; runner config is upgraded safely")
+print("PASS: missing analytics fails without an OpenAI call; model adapters are configured safely")
