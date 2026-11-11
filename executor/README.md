@@ -55,7 +55,7 @@ SQLite 先写作业，再执行。相同 id 和相同请求只执行一次；同
 
 ## 项目多仓库配置
 
-具有项目技术配置权限的用户可在“更多 → 技术配置 → 代码仓库”中登记多个 GitLab 仓库。网页只保存仓库地址、基准分支、`xlloop/` 工作分支、读写范围和管理员预设的检查命令名称，不接收 Git 密码、令牌或私钥。点击“拉取 / 同步到执行器”后，网关在 `/srv/xlloop/worktrees/<项目>/<仓库>` 创建独立 checkout，并将动态授权登记在 `/var/lib/xlloop/projects.json`。
+具有项目技术配置权限的用户可在“更多 → 技术配置 → 代码仓库”中登记多个 GitLab 仓库。网页只保存仓库地址、基准分支、`xlloop/` 工作分支、读写范围和管理员预设的检查命令名称，不接收 Git 密码、令牌或私钥。点击“拉取 / 同步到执行器”后，网关在 `/mnt/data500/xlloop/worktrees/<项目>/<仓库>` 创建独立 checkout，并将动态授权登记在 `/mnt/data500/xlloop/runtime/projects.json`。
 
 `runner-config.json` 顶层 `provisioning.allowed_git_hosts` 是最终主机白名单；页面不能扩展该白名单。Git 凭据由运行 `xlloop-runner` 的系统用户通过可写 SSH Deploy Key 或专用服务账号管理，`main` / `master` 必须同时在 GitLab 配置禁止直接推送。已有仓库若远端不一致会拒绝同步；存在未提交修改时不会切换分支、fetch/merge 或覆盖文件。已推送分支不能重复发布，需要填写新的 `xlloop/*` 工作分支并同步。Claude 只能看到该项目已登记的仓库，修改操作还会逐仓库检查 `read` / `edit` 权限，并为每个产生变更的仓库运行其检查名称对应的固定命令。
 

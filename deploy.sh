@@ -9,8 +9,20 @@ RUNNER_ENV="/etc/xlloop/runner.env"
 RUNNER_CONFIG="/etc/xlloop/runner-config.json"
 RUNNER_DIR="/opt/xlloop/runner"
 ADAPTER_DIR="/opt/xlloop/adapters"
+DATA_ROOT="/mnt/data500/xlloop"
+RUNTIME_DIR="${DATA_ROOT}/runtime"
+WORKTREE_DIR="${DATA_ROOT}/worktrees"
+ANALYTICS_DIR="${DATA_ROOT}/analytics"
+LOG_DIR="${DATA_ROOT}/logs"
 APP_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PM2_CONFIG="${APP_DIR}/deploy/ecosystem.config.cjs"
+RUNNER_WAS_ACTIVE=0
+
+restore_runner_on_error() {
+  if [[ ${RUNNER_WAS_ACTIVE} -eq 1 ]]; then
+    systemctl start xlloop-runner.service >/dev/null 2>&1 || true
+  fi
+}
 
 if [[ ${EUID} -ne 0 ]]; then
   echo "错误：请使用 root 执行：bash deploy.sh" >&2
@@ -68,12 +80,37 @@ echo "[1/8] 拉取 master 最新代码"
 git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" pull --ff-only origin master
 
 echo "[2/8] 准备目录和权限"
-install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 /var/log/xlloop
-install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 /var/lib/xlloop
-install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 /srv/xlloop/worktrees/ybirds
-install -d -o root -g "${APP_USER}" -m 750 /srv/xlloop/analytics
+install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 \
+  "${DATA_ROOT}" "${RUNTIME_DIR}" "${WORKTREE_DIR}" \
+  "${WORKTREE_DIR}/ybirds" "${LOG_DIR}"
+install -d -o root -g "${APP_USER}" -m 750 "${ANALYTICS_DIR}"
 install -d -o root -g "${APP_USER}" -m 750 "${RUNNER_DIR}" "${ADAPTER_DIR}"
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
+
+# One-time, recoverable migration from the former default paths. Stop the
+# runner so its SQLite database is closed before copying. Old data is retained.
+if systemctl is-active --quiet xlloop-runner.service; then
+  RUNNER_WAS_ACTIVE=1
+fi
+trap restore_runner_on_error ERR
+systemctl stop xlloop-runner.service 2>/dev/null || true
+if [[ -f /var/lib/xlloop/jobs.sqlite && ! -e "${RUNTIME_DIR}/jobs.sqlite" ]]; then
+  cp -a /var/lib/xlloop/jobs.sqlite "${RUNTIME_DIR}/jobs.sqlite"
+fi
+if [[ -f /var/lib/xlloop/projects.json && ! -e "${RUNTIME_DIR}/projects.json" ]]; then
+  cp -a /var/lib/xlloop/projects.json "${RUNTIME_DIR}/projects.json"
+fi
+if [[ -d /srv/xlloop/worktrees ]] && \
+   [[ -z "$(find "${WORKTREE_DIR}" -mindepth 1 -maxdepth 1 ! -name ybirds -print -quit)" ]] && \
+   [[ -z "$(find "${WORKTREE_DIR}/ybirds" -mindepth 1 -print -quit)" ]]; then
+  cp -a /srv/xlloop/worktrees/. "${WORKTREE_DIR}/"
+fi
+if [[ -d /srv/xlloop/analytics ]] && \
+   [[ -z "$(find "${ANALYTICS_DIR}" -mindepth 1 -print -quit)" ]]; then
+  cp -a /srv/xlloop/analytics/. "${ANALYTICS_DIR}/"
+fi
+chown -R "${APP_USER}:${APP_USER}" "${RUNTIME_DIR}" "${WORKTREE_DIR}" "${LOG_DIR}"
+chown -R root:"${APP_USER}" "${ANALYTICS_DIR}"
 
 echo "[3/8] 安装并配置执行器"
 install -o root -g "${APP_USER}" -m 750 \
@@ -90,7 +127,8 @@ fi
   --config "${RUNNER_CONFIG}" \
   --python "${PYTHON_BIN}" \
   --adapter "${ADAPTER_DIR}/openai_analysis.py" \
-  --claude-adapter "${ADAPTER_DIR}/claude_code.py"
+  --claude-adapter "${ADAPTER_DIR}/claude_code.py" \
+  --registry "${RUNTIME_DIR}/projects.json"
 install -o root -g root -m 644 \
   "${APP_DIR}/deploy/systemd/xlloop-runner.service" \
   /etc/systemd/system/xlloop-runner.service
@@ -121,6 +159,8 @@ if ! systemctl is-active --quiet xlloop-runner.service; then
   journalctl -u xlloop-runner.service -n 100 --no-pager || true
   exit 1
 fi
+RUNNER_WAS_ACTIVE=0
+trap - ERR
 
 echo "[8/8] 检查本机服务"
 for attempt in {1..15}; do

@@ -9,7 +9,7 @@ User=xlloop
 Group=xlloop
 WorkingDirectory=/opt/xlloop/runner
 EnvironmentFile=/etc/xlloop/runner.env
-ExecStart=/usr/bin/env python3.14 /opt/xlloop/runner/runner.py --config /etc/xlloop/runner-config.json --registry /var/lib/xlloop/projects.json --db /var/lib/xlloop/jobs.sqlite --host 127.0.0.1 --port 8788
+ExecStart=/usr/bin/env python3.14 /opt/xlloop/runner/runner.py --config /etc/xlloop/runner-config.json --registry /mnt/data500/xlloop/runtime/projects.json --db /mnt/data500/xlloop/runtime/jobs.sqlite --host 127.0.0.1 --port 8788
 Restart=on-failure
 RestartSec=3s
 KillMode=control-group
@@ -18,8 +18,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/xlloop /srv/xlloop/worktrees
-ReadOnlyPaths=-/srv/xlloop/analytics
+ReadWritePaths=/mnt/data500/xlloop/runtime /mnt/data500/xlloop/worktrees
+ReadOnlyPaths=-/mnt/data500/xlloop/analytics
 UMask=0077
 
 [Install]

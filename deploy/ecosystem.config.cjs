@@ -18,8 +18,8 @@ module.exports = {
       kill_timeout: 10000,
       time: true,
       merge_logs: true,
-      out_file: "/var/log/xlloop/web-out.log",
-      error_file: "/var/log/xlloop/web-error.log",
+      out_file: "/mnt/data500/xlloop/logs/web-out.log",
+      error_file: "/mnt/data500/xlloop/logs/web-error.log",
       env: {
         NODE_ENV: "production",
         HOSTNAME: "127.0.0.1",

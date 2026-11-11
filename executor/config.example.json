@@ -1,7 +1,7 @@
 {
   "provisioning": {
     "enabled": true,
-    "worktree_root": "/srv/xlloop/worktrees",
+    "worktree_root": "/mnt/data500/xlloop/worktrees",
     "allowed_git_hosts": [
       "gitlab.ybirds.cn"
     ],
@@ -12,7 +12,7 @@
   },
   "projects": {
     "ybirds": {
-      "cwd": "/absolute/path/to/isolated/ybirds-worktree",
+      "cwd": "/mnt/data500/xlloop/worktrees/ybirds",
       "repo": "Fill the exact authorized repository and branch scope",
       "environment": "Fill the exact allowed environment",
       "analytics": "Fill the exact allowed data source",

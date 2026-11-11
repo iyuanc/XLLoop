@@ -41,9 +41,10 @@ interactive login is disabled.
 useradd --system --create-home --home-dir /home/xlloop --shell /sbin/nologin xlloop
 install -d -o xlloop -g xlloop -m 750 \
   /opt/xlloop/app/releases \
-  /srv/xlloop/worktrees \
-  /var/lib/xlloop \
-  /var/log/xlloop
+  /mnt/data500/xlloop/worktrees \
+  /mnt/data500/xlloop/runtime \
+  /mnt/data500/xlloop/logs
+install -d -o root -g xlloop -m 750 /mnt/data500/xlloop/analytics
 install -d -o root -g xlloop -m 750 /opt/xlloop/runner
 install -d -o root -g xlloop -m 750 /etc/xlloop
 ```
@@ -82,7 +83,7 @@ Configure a separate worktree and fixed command array for every authorized
 project in `/etc/xlloop/runner-config.json`. Never turn request text into a
 shell command. Keep the runner token identical in both environment files.
 
-For Claude development, prepare `/srv/xlloop/worktrees/ybirds` as an independent
+For Claude development, prepare `/mnt/data500/xlloop/worktrees/ybirds` as an independent
 clone or isolated checkout whose branch starts with `xlloop/`; do not point it
 at `master`. Keep it clean before dispatching a development task. Fill
 `ANTHROPIC_API_KEY`, task-specific model names and current official per-token
@@ -109,7 +110,7 @@ protect `main` and `master` against direct pushes in GitLab, and verify the SSH
 host key separately. Prefer a service account when audit attribution matters.
 The executor accepts only hosts listed under `provisioning.allowed_git_hosts`
 in `/etc/xlloop/runner-config.json` and writes its dynamic registry to
-`/var/lib/xlloop/projects.json`.
+`/mnt/data500/xlloop/runtime/projects.json`.
 
 After deploying this version, open the project and use **More → Technical
 configuration → Code repositories**. Add each clone URL, base branch,
@@ -119,7 +120,7 @@ configuration → Code repositories**. Add each clone URL, base branch,
 Each checkout is created below:
 
 ```text
-/srv/xlloop/worktrees/<project-id>/<repository-id>
+/mnt/data500/xlloop/worktrees/<project-id>/<repository-id>
 ```
 
 The synchronization refuses embedded credentials, unapproved Git hosts,
@@ -329,4 +330,7 @@ rollback or forward-fix; never roll schema state back by replacing application
 files alone.
 
 Back up MySQL with an InnoDB-consistent procedure and back up
-`/var/lib/xlloop/jobs.sqlite`. Test restoration before production acceptance.
+`/mnt/data500/xlloop/runtime/jobs.sqlite`, the project registry, worktrees and
+analytics files. Test restoration before production acceptance. The deployment
+script copies data from the former `/var/lib/xlloop` and `/srv/xlloop` defaults
+only when the new targets are empty; it keeps the old data for manual rollback.
