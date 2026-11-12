@@ -147,29 +147,37 @@ def main() -> None:
         job = read_job()
         task = job["task"]
         workspace = Path.cwd().resolve()
-        commands = check_commands()
+        commands = check_commands() if task == "test" else {}
         repos = repositories(workspace)
         results: list[dict] = []
         reports: list[str] = []
+        previous = job.get("previous") if isinstance(job.get("previous"), list) else []
+        previous_test = next(
+            (item for item in previous if isinstance(item, dict) and item.get("task") == "test"),
+            None,
+        )
+        if task == "preview" and not previous_test:
+            raise PipelineError("缺少已完成的 CI 构建与业务流程测试证据")
         for repo in repos:
-            if not repo["checks"]:
+            if task == "test" and not repo["checks"]:
                 raise PipelineError(f"仓库 {repo['id']} 未配置任何 CI 检查")
             branch = git(repo["path"], "branch", "--show-current")
             head = git(repo["path"], "rev-parse", "--short", "HEAD")
             status = git(repo["path"], "status", "--short")
             diff_stat = git(repo["path"], "diff", "--stat")
-            for name in repo["checks"]:
-                result = run_check(repo, name, commands)
-                results.append(result)
-                if not result["passed"]:
-                    emit(
-                        {
-                            "status": "failed",
-                            "error": f"仓库 {repo['id']} 检查失败：{name}\n{result['output']}",
-                            "cost": 0.0,
-                        }
-                    )
-                    return
+            if task == "test":
+                for name in repo["checks"]:
+                    result = run_check(repo, name, commands)
+                    results.append(result)
+                    if not result["passed"]:
+                        emit(
+                            {
+                                "status": "failed",
+                                "error": f"仓库 {repo['id']} 检查失败：{name}\n{result['output']}",
+                                "cost": 0.0,
+                            }
+                        )
+                        return
             reports.append(
                 f"仓库 {repo['id']}；分支 {branch}；提交 {head}；"
                 f"工作区 {'有待验收差异' if status else '干净'}。\n"
@@ -180,13 +188,14 @@ def main() -> None:
             summary = "CI 构建与已配置业务流程检查通过。"
             mode = "ci"
         else:
-            summary = "已生成构建预览与验收报告；尚未部署到公开预览地址。"
+            summary = "已根据上一环节 CI 结果生成代码差异与验收报告；尚未部署到公开预览地址。"
             mode = "acceptance-report"
+        ci_evidence = "" if task == "test" else f"上一步 CI 证据：{str(previous_test.get('result', {}).get('evidence') or '')[:1500]}。\n"
         emit(
             {
                 "status": "succeeded",
                 "summary": summary,
-                "evidence": (f"固定检查：{names}。\n" + "\n\n".join(reports))[:6000],
+                "evidence": ((f"固定检查：{names}。\n" if task == "test" else ci_evidence) + "\n\n".join(reports))[:6000],
                 "cost": 0.0,
                 "artifacts": [],
                 "metrics": {"mode": mode, "checks": results},

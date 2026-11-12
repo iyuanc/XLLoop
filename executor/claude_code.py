@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Restricted Claude adapter for XLLoop specification, development and review tasks.
+"""Restricted Claude adapter for XLLoop diagnosis, specification, development and review tasks.
 
 The adapter never commits, pushes or deploys.  Development happens only in an
 administrator-prepared isolated Git worktree on a non-protected branch.  Claude
-may read and edit files through a deliberately small client-side tool set and
-may run only administrator-configured checks.
+may read and edit files through a deliberately small client-side tool set.
+Builds and tests are deliberately reserved for the later fixed CI task.
 """
 
 from __future__ import annotations
@@ -393,21 +393,6 @@ def tools_for(task: str, checks: dict[str, list[str]]) -> list[dict]:
             "input_schema": {"type": "object", "properties": {}},
         },
     ]
-    if checks:
-        tools.append(
-            {
-                "name": "run_check",
-                "description": "Run one administrator-approved validation command.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "repository": {"type": "string", "enum": sorted(ACTIVE_REPOSITORIES)} if ACTIVE_REPOSITORIES else {"type": "string"},
-                        "name": {"type": "string", "enum": sorted(checks)},
-                    },
-                    "required": ["repository", "name"] if ACTIVE_REPOSITORIES else ["name"],
-                },
-            }
-        )
     if task in MUTATING_TASKS:
         tools.extend(
             [
@@ -614,14 +599,14 @@ def system_prompt(task: str, branch: str, checks: dict[str, list[str]]) -> str:
             f" Work only in isolated branch {branch}. Inspect before editing, make the smallest relevant change, "
             "and use only the supplied tools. Never commit, push, deploy, change branches, delete files, or edit .git. "
             f"Authorized repositories: {repositories or 'the current repository'}. In a multi-repository workspace, every file path must start with its repository id. "
-            f"Available validation names: {', '.join(sorted(checks)) or 'none'}."
+            "Do not run build or test commands; the later CI task owns all configured checks."
         )
     if task == "review":
         repositories = ", ".join(ACTIVE_REPOSITORIES) or "the current repository"
         return common + (
             f" Review branch {branch} read-only. Inspect the current diff and relevant files. Do not request edits, "
             f"commits, pushes or deployments. Authorized repositories: {repositories}. In a multi-repository workspace, every file path must start with its repository id. "
-            f"Available validation names: {', '.join(sorted(checks)) or 'none'}."
+            "Do not run build or test commands; the later CI task owns all configured checks."
         )
     if task == "spec":
         return common + " Produce a product and engineering specification with risks and verifiable acceptance criteria."
@@ -774,34 +759,6 @@ def main() -> None:
             if task == "develop" and not current_changes:
                 fail("Claude 未产生代码变更", spent)
                 return
-            if ACTIVE_REPOSITORIES:
-                changed_repositories = sorted({PurePosixPath(path).parts[0] for path in current_changes})
-                for repo_id in changed_repositories:
-                    required = ACTIVE_REPOSITORIES[repo_id].get("checks", [])
-                    if task == "develop" and not required:
-                        raise AdapterError(f"仓库 {repo_id} 必须配置至少一个最终验证命令")
-                    for name in required:
-                        result = run_check(root, name, checks, repo_id)
-                        check_results.append(result)
-                        if not result["passed"]:
-                            output = str(result.get("output") or "")[-3000:]
-                            fail(
-                                f"仓库 {repo_id} 的最终检查失败：{name}。\n{output}",
-                                spent,
-                            )
-                            return
-            else:
-                required_name = "XLLOOP_REQUIRED_DEVELOP_CHECKS" if task == "develop" else "XLLOOP_REQUIRED_REVIEW_CHECKS"
-                required = [item.strip() for item in os.environ.get(required_name, "").split(",") if item.strip()]
-                if task == "develop" and not required:
-                    raise AdapterError("开发任务必须配置至少一个最终验证命令")
-                for name in required:
-                    result = run_check(root, name, checks)
-                    check_results.append(result)
-                    if not result["passed"]:
-                        output = str(result.get("output") or "")[-3000:]
-                        fail(f"最终检查失败：{name}。\n{output}", spent)
-                        return
             report = diff_report(root)
         else:
             current_changes = []
@@ -830,7 +787,7 @@ def main() -> None:
             f"任务 {task}；分支 {branch or 'N/A'}；费用 ${spent:.8f}；"
             f"Token 预算预检本地保守估算 {token_count_fallbacks} 次；"
             f"修改文件 {', '.join(current_changes) or '无'}；"
-            f"最终检查 {', '.join(r['name'] + ('=PASS' if r['passed'] else '=FAIL') for r in check_results) or '无'}。\n"
+            "构建与测试 未在本步骤执行，交由后续 CI 构建与业务流程测试步骤。\n"
             f"{(diagnosis['evidence'] + chr(10)) if diagnosis else ''}{report[:4000]}"
         )
         emit(

@@ -51,19 +51,19 @@ SQLite 先写作业，再执行。相同 id 和相同请求只执行一次；同
 
 可用 `XLLOOP_ALLOWED_BRANCHES` 再配置精确分支白名单。适配器本身不提供 commit、push、分支切换、部署或任意 shell 工具。开发完成后先保留未提交 diff 和验证证据；只有具备技术配置权限的人员在网页再次确认，网关才为单个仓库提交并推送新的 `xlloop/*` 分支。合并与上线继续由 GitLab 和发布流程单独审批。密钥只放在 `/etc/xlloop/runner.env`，可用 `CLAUDE_DEVELOP_MODEL`、`CLAUDE_REVIEW_MODEL` 等变量分别选模型。对应的输入、输出及缓存费率必须按供应商当前价格填写。
 
-允许执行的检查必须以固定参数数组写入 `XLLOOP_CHECK_COMMANDS_JSON`，例如 `'{"build":["pnpm","build"]}'`，不得把任务文本拼成命令。适配器先调用 token 计数接口做预算上限预检，再按响应实际用量结算；若请求结果不明确，不会把费用记为零。
+构建与测试命令不在 Claude 的 analysis、develop 或 review 步骤运行，统一交给后续固定 CI 步骤。允许执行的检查必须以固定参数数组写入 `XLLOOP_CHECK_COMMANDS_JSON`，例如 `'{"build":["pnpm","build"]}'`，不得把任务文本拼成命令。Claude 适配器先调用 token 计数接口做预算上限预检，再按响应实际用量结算；若请求结果不明确，不会把费用记为零。
 
 ## CI 构建与预览验收适配器
 
-`fixed_pipeline.py` 支持 `test` 和 `preview`。它只运行 `XLLOOP_CHECK_COMMANDS_JSON` 中由管理员固定配置、并在仓库配置中勾选的检查名称，不使用 shell、不接收任务文本作为命令，也不调用模型，费用固定为 0。检查失败会把命令输出返回页面；成功会记录仓库、分支、提交、差异摘要和每项检查结果。
+`fixed_pipeline.py` 支持 `test` 和 `preview`。只有 `test` 会运行 `XLLOOP_CHECK_COMMANDS_JSON` 中由管理员固定配置、并在仓库配置中勾选的检查名称；`preview` 只读取上一步 CI 证据并生成代码差异与验收报告，不会重复构建。两者都不使用 shell、不接收任务文本作为命令，也不调用模型，费用固定为 0。检查失败会把命令输出返回页面；成功会记录仓库、分支、提交、差异摘要和检查结果。
 
-`test` 代表已配置的 CI 构建与业务流程检查；只配置 `build` 时，不能声称业务流程测试已经执行。`preview` 生成构建差异预览与验收报告，不会冒充公开部署，也不会返回虚假的预览网址。需要可交互的公网预览时，必须另行接入经过授权的预览发布服务，并配置真实 HTTPS 地址。
+`test` 代表已配置的 CI 构建与业务流程检查；只配置 `build` 时，不能声称业务流程测试已经执行。`preview` 生成代码差异与验收报告，不会冒充公开部署，也不会返回虚假的预览网址。需要可交互的公网预览时，必须另行接入经过授权的预览发布服务，并配置真实 HTTPS 地址。
 
 ## 项目多仓库配置
 
 具有项目技术配置权限的用户可在“更多 → 技术配置 → 代码仓库”中登记多个 GitLab 仓库。网页只保存仓库地址、基准分支、`xlloop/` 工作分支、读写范围和管理员预设的检查命令名称，不接收 Git 密码、令牌或私钥。点击“拉取 / 同步到执行器”后，网关在 `/mnt/data500/xlloop/worktrees/<项目>/<仓库>` 创建独立 checkout，并将动态授权登记在 `/mnt/data500/xlloop/runtime/projects.json`。
 
-`runner-config.json` 顶层 `provisioning.allowed_git_hosts` 是最终主机白名单；页面不能扩展该白名单。Git 凭据由运行 `xlloop-runner` 的系统用户通过可写 SSH Deploy Key 或专用服务账号管理，`main` / `master` 必须同时在 GitLab 配置禁止直接推送。已有仓库若远端不一致会拒绝同步；存在未提交修改时不会切换分支、fetch/merge 或覆盖文件。已推送分支不能重复发布，需要填写新的 `xlloop/*` 工作分支并同步。Claude 只能看到该项目已登记的仓库，修改操作还会逐仓库检查 `read` / `edit` 权限，并为每个产生变更的仓库运行其检查名称对应的固定命令。
+`runner-config.json` 顶层 `provisioning.allowed_git_hosts` 是最终主机白名单；页面不能扩展该白名单。Git 凭据由运行 `xlloop-runner` 的系统用户通过可写 SSH Deploy Key 或专用服务账号管理，`main` / `master` 必须同时在 GitLab 配置禁止直接推送。已有仓库若远端不一致会拒绝同步；存在未提交修改时不会切换分支、fetch/merge 或覆盖文件。已推送分支不能重复发布，需要填写新的 `xlloop/*` 工作分支并同步。Claude 只能看到该项目已登记的仓库，修改操作还会逐仓库检查 `read` / `edit` 权限；仓库配置的检查名称仅由后续固定 CI 步骤执行。
 
 ## 自主巡检适配器（v0.3）
 

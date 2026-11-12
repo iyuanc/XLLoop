@@ -14,13 +14,14 @@ def command(*args, cwd):
     subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
 
 
-def run_adapter(workspace, task, env):
+def run_adapter(workspace, task, env, previous=None):
     job = {
         "id": f"pipeline-{task}",
         "project": "fixture",
         "task": task,
         "command": "验证构建并生成验收证据",
         "budget": {"maxAdditionalCost": 1},
+        "previous": previous or [],
     }
     completed = subprocess.run(
         [sys.executable, str(ADAPTER)],
@@ -55,7 +56,7 @@ with tempfile.TemporaryDirectory() as directory:
                     "build": [
                         sys.executable,
                         "-c",
-                        "from pathlib import Path; assert Path('result.txt').read_text() == 'changed\\n'",
+                        "from pathlib import Path; p=Path('.build-count'); p.write_text(str(int(p.read_text())+1) if p.exists() else '1'); assert Path('result.txt').read_text() == 'changed\\n'",
                     ]
                 }
             ),
@@ -76,10 +77,13 @@ with tempfile.TemporaryDirectory() as directory:
     assert tested["cost"] == 0
     assert tested["metrics"]["mode"] == "ci"
     assert tested["metrics"]["checks"][0]["passed"] is True
+    assert (repo / ".build-count").read_text() == "1"
 
-    previewed = run_adapter(workspace, "preview", env)
+    previewed = run_adapter(workspace, "preview", env, [{"task": "test", "result": tested}])
     assert previewed["status"] == "succeeded", previewed
     assert previewed["metrics"]["mode"] == "acceptance-report"
+    assert previewed["metrics"]["checks"] == []
+    assert (repo / ".build-count").read_text() == "1"
     assert previewed["artifacts"] == []
     assert "尚未部署到公开预览地址" in previewed["summary"]
 
@@ -91,4 +95,4 @@ with tempfile.TemporaryDirectory() as directory:
     assert failed["cost"] == 0
     assert "fixture failure" in failed["error"]
 
-print("PASS: fixed CI and preview report adapter runs only authorized checks and returns verifiable output")
+print("PASS: fixed CI runs authorized checks once; preview reuses CI evidence without rebuilding")

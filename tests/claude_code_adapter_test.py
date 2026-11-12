@@ -115,8 +115,6 @@ def adapter_env(port):
                     ]
                 }
             ),
-            "XLLOOP_REQUIRED_DEVELOP_CHECKS": "tests",
-            "XLLOOP_REQUIRED_REVIEW_CHECKS": "",
         }
     )
     return env
@@ -175,6 +173,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert developed["status"] == "succeeded", developed
         assert developed["metrics"]["provider"] == "anthropic"
         assert developed["metrics"]["model"] == "claude-develop-fixture"
+        assert developed["metrics"]["checks"] == []
         assert "return 2" in (repo / "sample.py").read_text(encoding="utf-8")
         assert "sample.py" in developed["evidence"]
         assert subprocess.run(
@@ -256,7 +255,7 @@ with tempfile.TemporaryDirectory() as directory:
         developed = run_adapter(workspace, "develop", env)
         assert developed["status"] == "succeeded", developed
         assert developed["metrics"]["changed_files"] == ["web/sample.py"]
-        assert developed["metrics"]["checks"][0]["repository"] == "web"
+        assert developed["metrics"]["checks"] == []
         assert "return 2" in (workspace / "web/sample.py").read_text(encoding="utf-8")
         assert "return 1" in (workspace / "api/sample.py").read_text(encoding="utf-8")
     finally:
@@ -264,4 +263,4 @@ with tempfile.TemporaryDirectory() as directory:
         server.server_close()
         thread.join(timeout=5)
 
-print("PASS: Claude task models, budgets, multi-repository isolation, branch controls, fixed checks, read-only repositories, and no automatic commit")
+print("PASS: Claude task models, budgets, multi-repository isolation, branch controls, read-only diagnosis/review, no build or test execution, and no automatic commit")
