@@ -3,6 +3,8 @@ import {reserve,settle} from '../governance/store';
 function repositoryError(message:string){
  if(message==='Remote working branch already exists; configure a new xlloop/* branch before publishing again')return 'GitLab 已存在当前工作分支。系统为避免覆盖或重复推送已停止操作；请先确认该远程分支，后续交付需配置新的 xlloop/* 工作分支并重新同步仓库。';
  if(message==='Remote working branch has changes that are not in the local checkout; synchronize or use a new xlloop/* branch')return 'GitLab 工作分支包含本地没有的提交，不能安全推送。请先同步并核对远程改动，或配置新的 xlloop/* 工作分支。';
+ if(message==='Working branch is neither based on the configured remote base nor a safe continuation of the remote working branch')return '当前工作分支既不基于最新的 master/main，也不能确认是远程工作分支的安全延续。请同步并核对分支，或配置新的 xlloop/* 工作分支。';
+ if(message==='Working branch is not based on the configured remote base branch')return '当前工作分支不是从配置的最新 master/main 创建，不能安全推送。请同步并核对基准分支。';
  return message;
 }
 export async function runner(env:any,path:string,body?:any){

@@ -146,11 +146,13 @@ class Gateway:
    remote=self.git_process(target,'ls-remote','--exit-code','--heads','origin','refs/heads/'+work)
    if remote.returncode not in (0,2): raise ValueError((remote.stderr or 'Unable to verify remote working branch')[-1500:])
    self.git(target,'fetch','--no-tags','origin',base)
-   if self.git_process(target,'merge-base','--is-ancestor','origin/'+base,'HEAD').returncode: raise ValueError('Working branch is not based on the configured remote base branch')
    remote_commit=''
    if remote.returncode==0:
     self.git(target,'fetch','--no-tags','origin',work)
     remote_commit=self.git(target,'rev-parse','FETCH_HEAD').strip()
+   based_on_remote_base=self.git_process(target,'merge-base','--is-ancestor','origin/'+base,'HEAD').returncode==0
+   continues_remote_work=bool(remote_commit) and self.git_process(target,'merge-base','--is-ancestor',remote_commit,'HEAD').returncode==0
+   if not based_on_remote_base and not continues_remote_work: raise ValueError('Working branch is neither based on the configured remote base nor a safe continuation of the remote working branch')
    dirty=bool(self.git(target,'status','--porcelain').strip())
    if dirty:
     self.git(target,'add','-A','--','.')

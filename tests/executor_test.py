@@ -54,6 +54,7 @@ class TestGateway(unittest.TestCase):
     self.assertIn('refs/heads/xlloop/project-web',remote)
     repeated=g.publish_repository({'project':'project-one','repositoryId':'web','message':'确认已推送','approved':True})
     self.assertEqual(repeated['status'],'already_published');self.assertEqual(repeated['commit'],published['commit'])
+    (source/'BASE.md').write_text('base advanced after squash merge',encoding='utf-8');subprocess.run(['git','add','BASE.md'],cwd=source,check=True);subprocess.run(['git','commit','-m','advance base'],cwd=source,check=True,capture_output=True)
     (project_root/'web'/'README.md').write_text('changed again',encoding='utf-8')
     updated=g.publish_repository({'project':'project-one','repositoryId':'web','message':'继续完善测试修改','approved':True})
     self.assertEqual(updated['status'],'published');self.assertNotEqual(updated['commit'],published['commit'])
