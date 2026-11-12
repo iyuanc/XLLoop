@@ -94,7 +94,7 @@ class Gateway:
     else:self.git(target,'merge','--ff-only','origin/'+base)
   remote_work=self.git_process(target,'ls-remote','--exit-code','--heads','origin','refs/heads/'+work)
   if remote_work.returncode not in (0,2): raise ValueError((remote_work.stderr or 'Unable to verify remote working branch')[-1500:])
-  return {'id':repo_id,'name':str(item.get('name') or repo_id)[:100],'cloneUrl':url,'baseBranch':base,'workBranch':work,'role':str(item.get('role') or '')[:100],'access':access,'checks':list(dict.fromkeys(checks)),'enabled':item.get('enabled') is not False,'path':str(target),'dirty':bool(self.git(target,'status','--porcelain').strip()),'head':self.git(target,'rev-parse','--short','HEAD').strip(),'remotePublished':remote_work.returncode==0}
+  return {'id':repo_id,'name':str(item.get('name') or repo_id)[:100],'cloneUrl':url,'baseBranch':base,'workBranch':work,'role':str(item.get('role') or '')[:100],'access':access,'checks':list(dict.fromkeys(checks)),'enabled':item.get('enabled') is not False,'autoPublish':item.get('autoPublish') is True,'path':str(target),'dirty':bool(self.git(target,'status','--porcelain').strip()),'head':self.git(target,'rev-parse','--short','HEAD').strip(),'remotePublished':remote_work.returncode==0}
  def configure_repositories(self,body):
   policy=self.config.get('provisioning',{});project=body.get('project');items=body.get('repositories')
   if policy.get('enabled') is not True or not self.registry_path: raise ValueError('Repository provisioning is disabled')

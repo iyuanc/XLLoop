@@ -6,9 +6,26 @@ import {env} from '../../../lib/runtime/env';
 import {read,write,validProject} from '../../../lib/agent/store';
 import {plan,current,audit,log,preflight,consumeResult,scopes,Run} from '../../../lib/agent/core';
 import {capabilities,runner} from '../../../lib/agent/runner';
+import {defaults as architectureDefaults,normalize as normalizeArchitecture} from '../../../lib/architecture/core';
 const json=(body:any,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store'}});
 async function identity(req:Request,project:any){const uid=req.headers.get('oai-authenticated-user-id');if(!uid)throw Error('AUTH');if(!await validProject(env.DB,uid,project))throw Error('PROJECT');return uid;}
 const clean=(v:any,n=3000)=>typeof v==='string'?v.trim().slice(0,n):'';
+async function publishWorkBranches(uid:string,project:string,run:Run){
+ const required=['develop','review','test','preview'];const delivery=required.map(id=>run.tasks.find(t=>t.id===id));
+ if(delivery.some(t=>!t))throw Error('运行缺少自动推送所需的交付步骤，请按最新配置重建计划');
+ const incomplete=delivery.filter(t=>t!.status!=='completed');
+ if(incomplete.length)return {summary:'自动推送已跳过。',evidence:'以下步骤不是执行器自动成功状态：'+incomplete.map(t=>`${t!.name}（${t!.status}）`).join('、')+'。人工完成、失败或状态不明的运行不得自动推送。',cost:0,artifacts:[],metrics:{skipped:true,reason:'delivery_not_automatically_verified'}};
+ const row=await env.DB!.prepare('SELECT payload FROM project_state WHERE id=?').bind(uid+':architecture:'+project).first<any>();
+ const architecture=normalizeArchitecture(row?JSON.parse(row.payload):architectureDefaults());
+ const configured=architecture.repositories.filter((repo:any)=>repo.enabled!==false&&repo.access==='edit'&&repo.autoPublish===true);
+ if(!configured.length)return {summary:'自动推送已跳过。',evidence:'项目没有为任何可编辑仓库开启“执行器验证全部通过后自动推送工作分支”。',cost:0,artifacts:[],metrics:{skipped:true,reason:'auto_publish_disabled'}};
+ const status=await runner(env,'/v1/repositories?project='+encodeURIComponent(project));const liveRows=Array.isArray(status?.repositories)?status.repositories:[];
+ const publishable:any[]=[];const skipped:string[]=[];
+ for(const repo of configured){const live=liveRows.find((item:any)=>item.id===repo.id);if(!live)throw Error(`仓库 ${repo.id} 尚未同步到执行器`);if(live.autoPublish!==true)throw Error(`仓库 ${repo.id} 的自动推送授权尚未同步，请在技术配置中执行“拉取 / 同步到执行器”`);if(live.remotePublished){skipped.push(`${repo.id} 已推送`);continue}if(!live.dirty&&!(Number(live.ahead)>0)){skipped.push(`${repo.id} 无待推送修改`);continue}publishable.push(repo);}
+ const published:any[]=[];const message=('XLLoop 自动交付：'+run.command.replace(/[\r\n]+/g,' ').trim()).slice(0,190)+' '+run.id.slice(0,8);
+ for(const repo of publishable){const result=await runner(env,'/v1/repositories/publish',{project,repositoryId:repo.id,message,approved:true,approvalSource:'saved_project_auto_publish'});published.push(result);}
+ return {summary:published.length?`已自动提交并推送 ${published.length} 个工作分支。`:'没有需要自动推送的仓库。',evidence:[...published.map(item=>`${item.repositoryId}: ${item.branch} @ ${String(item.commit).slice(0,12)}`),...skipped].join('\n')||'所有已授权仓库均无待推送修改。',cost:0,artifacts:[],metrics:{published:published.map(item=>({repositoryId:item.repositoryId,branch:item.branch,commit:item.commit})),skipped}};
+}
 async function handleGET(req:Request){try{const p=new URL(req.url).searchParams.get('project');const uid=await identity(req,p);const saved=await read(env.DB,uid,p!);return json(saved);}catch(e:any){return json({error:e.message==='AUTH'?'请登录后使用执行系统':'项目不可用'},e.message==='AUTH'?401:400)}}
 async function handlePOST(req:Request){
  try{
@@ -51,6 +68,8 @@ async function handlePOST(req:Request){
  const row=await env.DB!.prepare('SELECT payload FROM project_state WHERE id=?').bind(uid+':'+b.project).first<any>();const saved=row?JSON.parse(row.payload):{records:[]};task.status='completed';task.result=audit(saved.records||[],run.settings,run.memory);run.iterations++;log(run,'已完成项目记录盘点；未把示例记录当作英鸟真实运营数据。');
  }else if(task.id==='analysis'&&!String(run.settings.analytics||'').trim()){
  task.status='completed';task.error='';task.result={summary:'未配置业务数据，本步骤已跳过。',evidence:'运行快照中的“分析数据源与指标口径”为空；未调用外部执行器或大模型。',cost:0,artifacts:[],metrics:{skipped:true,reason:'missing_business_data'}};run.iterations++;log(run,'未配置业务数据，已跳过业务数据分析步骤；未产生模型费用。');
+ }else if(task.id==='publish'){
+ task.attempt++;run.iterations++;try{task.result=await publishWorkBranches(uid,b.project,run);task.status='completed';task.error='';log(run,task.result.metrics?.skipped?'自动推送步骤已安全跳过：'+task.result.evidence:'工作分支已自动提交并推送；未合并 master/main，也未部署。','系统');if(!current(run)){run.status='completed';log(run,'本次授权范围内的步骤已完成。');}}catch(e:any){task.status='failed';task.error=String(e.message||'自动推送失败').slice(0,1000);run.status='failed';log(run,'自动推送失败：'+task.error,'系统');}
  }else{
  const poll=!!task.jobId&&['running','unknown'].includes(task.status);
  if(!poll){const caps=await capabilities(env,b.project);data.connection=caps;const issue=!caps.connected?caps.message:preflight(run,task,caps.capabilities);if(issue){task.status='blocked';task.error=issue;run.status='blocked';log(run,'执行阻塞：'+issue);const revision=await write(env.DB,uid,b.project,data,state.revision);return json({data,revision});}}

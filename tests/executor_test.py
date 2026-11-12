@@ -30,10 +30,10 @@ class TestGateway(unittest.TestCase):
    try:
     def fixture(project_root,item,allowed):
      target=project_root/item['id'];target.mkdir(parents=True,exist_ok=True)
-     return {'id':item['id'],'name':item['name'],'cloneUrl':item['cloneUrl'],'baseBranch':'master','workBranch':item['workBranch'],'role':item['role'],'access':item['access'],'checks':item['checks'],'enabled':True,'path':str(target),'dirty':False,'head':'abc1234'}
+     return {'id':item['id'],'name':item['name'],'cloneUrl':item['cloneUrl'],'baseBranch':'master','workBranch':item['workBranch'],'role':item['role'],'access':item['access'],'checks':item['checks'],'enabled':True,'autoPublish':item.get('autoPublish') is True,'path':str(target),'dirty':False,'head':'abc1234'}
     g.provision_repository=fixture
-    result=g.configure_repositories({'project':'project-one','repositories':[{'id':'web','name':'Web','cloneUrl':'git@gitlab.example.test:team/web.git','baseBranch':'master','workBranch':'xlloop/project-one-web','role':'frontend','access':'edit','checks':['build'],'enabled':True},{'id':'api','name':'API','cloneUrl':'git@gitlab.example.test:team/api.git','baseBranch':'master','workBranch':'xlloop/project-one-api','role':'backend','access':'read','checks':['test'],'enabled':True}]})
-    self.assertEqual(len(result['repositories']),2);self.assertTrue(registry.is_file());self.assertEqual(g.project('project-one')['repositories'][1]['access'],'read');self.assertIn('repository',g.capabilities('project-one'))
+    result=g.configure_repositories({'project':'project-one','repositories':[{'id':'web','name':'Web','cloneUrl':'git@gitlab.example.test:team/web.git','baseBranch':'master','workBranch':'xlloop/project-one-web','role':'frontend','access':'edit','checks':['build'],'enabled':True,'autoPublish':True},{'id':'api','name':'API','cloneUrl':'git@gitlab.example.test:team/api.git','baseBranch':'master','workBranch':'xlloop/project-one-api','role':'backend','access':'read','checks':['test'],'enabled':True}]})
+    self.assertEqual(len(result['repositories']),2);self.assertTrue(registry.is_file());self.assertTrue(g.project('project-one')['repositories'][0]['autoPublish']);self.assertEqual(g.project('project-one')['repositories'][1]['access'],'read');self.assertIn('repository',g.capabilities('project-one'))
    finally:g.pool.shutdown(wait=True)
  def test_repository_clone_uses_isolated_work_branch(self):
   with tempfile.TemporaryDirectory() as d:
