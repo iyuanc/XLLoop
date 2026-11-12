@@ -4,7 +4,7 @@ import {guard} from '../../../lib/access/guard';
 import {isSameOrigin} from '../../../lib/http/origin';
 import {env} from '../../../lib/runtime/env';
 import {read,write,validProject} from '../../../lib/agent/store';
-import {plan,current,audit,log,preflight,consumeResult,scopes,Run} from '../../../lib/agent/core';
+import {plan,current,audit,log,preflight,consumeResult,scopes,Run,MAX_TASK_RETRIES} from '../../../lib/agent/core';
 import {capabilities,runner} from '../../../lib/agent/runner';
 import {defaults as architectureDefaults,normalize as normalizeArchitecture} from '../../../lib/architecture/core';
 const json=(body:any,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store'}});
@@ -46,7 +46,7 @@ async function handlePOST(req:Request){
  if(Number(req.headers.get('content-length'))>100000)return json({error:'请求过大'},413);
  const b:any=await req.json();if(JSON.stringify(b).length>100000)return json({error:'请求过大'},413);const uid=await identity(req,b.project);const state=await read(env.DB,uid,b.project);if(b.revision!==state.revision)return json({error:'数据已更新，请刷新后重试'},409);let data=state.data;
  if(b.action==='settings'){
- const s=b.settings||{};data.settings={objective:clean(s.objective),repo:clean(s.repo,500),environment:clean(s.environment,500),analytics:clean(s.analytics,1000),cdn:clean(s.cdn,500),channels:clean(s.channels,1000),owner:clean(s.owner,80)||'待分配',deadline:clean(s.deadline,20),currency:'USD',maxRetries:Math.min(3,Math.max(0,Number(s.maxRetries)||0)),maxIterations:Math.min(100,Math.max(5,Number(s.maxIterations)||30))};
+ const s=b.settings||{};data.settings={objective:clean(s.objective),repo:clean(s.repo,500),environment:clean(s.environment,500),analytics:clean(s.analytics,1000),cdn:clean(s.cdn,500),channels:clean(s.channels,1000),owner:clean(s.owner,80)||'待分配',deadline:clean(s.deadline,20),currency:'USD',maxRetries:Math.min(MAX_TASK_RETRIES,Math.max(0,Number(s.maxRetries)||0)),maxIterations:Math.min(100,Math.max(5,Number(s.maxIterations)||30))};
  }else if(b.action==='memory'){
  if(!clean(b.text))throw Error('请填写记忆内容');if(!['已验证事实','待验证','假设','风险'].includes(b.type))throw Error('记忆类型无效');if(b.type==='已验证事实'&&!clean(b.source))throw Error('事实记忆需要来源');data.memory=[{id:crypto.randomUUID(),text:clean(b.text),type:b.type,source:clean(b.source,1000),at:new Date().toISOString()},...data.memory].slice(0,100);
  }else if(b.action==='create'){
@@ -69,7 +69,7 @@ async function handlePOST(req:Request){
  }else if(b.action==='reject'){
  if(run.status!=='awaiting_approval')throw Error('没有待审批步骤');run.status='paused';log(run,'用户驳回审批，执行暂停：'+clean(b.note,500),'用户');
  }else if(b.action==='retry'){
- if(!task||task.status!=='failed'||task.attempt>run.maxRetries)throw Error('当前任务不可重试或已达到重试上限');task.status='pending';task.jobId=undefined;task.error='';run.status='running';log(run,'用户请求重试已确认失败的任务','用户');
+ if(!task||task.status!=='failed'||task.attempt>MAX_TASK_RETRIES)throw Error('当前任务不可重试或已达到 10 次重试上限');if(task.attempt>run.maxRetries){run.maxRetries=MAX_TASK_RETRIES;log(run,'用户明确重试，将本轮单步骤重试上限扩展为 10 次。','用户');}task.status='pending';task.jobId=undefined;task.error='';run.status='running';log(run,'用户请求重试已确认失败的任务','用户');
  }else if(b.action==='manual'){
  if(!task||['running','unknown'].includes(task.status)||['completed','cancelled'].includes(run.status))throw Error('外部任务状态未确认或运行已结束，不能人工覆盖');if(task.gate&&!task.approved)throw Error('此步骤需要先审批');if(!clean(b.summary)||!clean(b.evidence))throw Error('人工接管必须提供结果和证据');task.status='manual';task.error='';task.result={summary:clean(b.summary),evidence:clean(b.evidence),source:'人工接管',cost:0};log(run,task.name+'由用户接管完成；不是 Agent 自动执行结果','用户');run.status=current(run)?'paused':'completed';
  }else if(b.action==='advance'||b.action==='reconcile'){

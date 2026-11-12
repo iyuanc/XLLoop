@@ -1,8 +1,9 @@
 export type Task={id:string,name:string,role:string,capabilities:string[],gate:boolean,status:string,attempt:number,jobId?:string,result?:any,error?:string,approved?:boolean};
 export type Run={id:string,requestId:string,command:string,scope:string,status:string,created:string,updated:string,budget:number,spent:number,iterations:number,maxIterations:number,maxRetries:number,version:string,settings:any,memory:any[],tasks:Task[],events:any[]};
+export const MAX_TASK_RETRIES=10;
 export const scopes:any={analysis:'仅分析',plan:'生成方案',preview:'执行至预览',full:'完整闭环（上线与推广需审批）'};
 export const roles=[['总控','目标拆解与依赖推进'],['数据与运营','问题诊断与证据核验'],['产品','需求、实验与验收标准'],['开发','隔离环境修改源码'],['审查与测试','代码检查与业务验收'],['发布','CI/CD、预览、缓存与恢复'],['增长','渠道、素材与效果归因'],['效果','指标、成本与下一轮建议']];
-export function defaults(){return {settings:{objective:'',repo:'',environment:'',analytics:'',cdn:'',channels:'',owner:'待分配',deadline:'',currency:'USD',maxRetries:2,maxIterations:30},memory:[],runs:[]};}
+export function defaults(){return {settings:{objective:'',repo:'',environment:'',analytics:'',cdn:'',channels:'',owner:'待分配',deadline:'',currency:'USD',maxRetries:10,maxIterations:30},memory:[],runs:[]};}
 export function log(run:Run,message:string,actor='系统'){run.updated=new Date().toISOString();run.events=[...run.events,{at:run.updated,message,actor}].slice(-200);}
 export function plan(command:string,scope:string,budget:number,settings:any,memory:any[],requestId:string):Run{
  const rows:any[]=[['readiness','项目盘点与证据检查','总控',[],false],['analysis','问题诊断','数据与运营',['model'],false]];
