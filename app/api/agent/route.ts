@@ -69,7 +69,7 @@ async function handlePOST(req:Request){
  }else if(b.action==='reject'){
  if(run.status!=='awaiting_approval')throw Error('没有待审批步骤');run.status='paused';log(run,'用户驳回审批，执行暂停：'+clean(b.note,500),'用户');
  }else if(b.action==='retry'){
- const rejected400=task?.status==='unknown'&&String(task.error||'').includes('执行器 HTTP 400');if(!task||(!rejected400&&task.status!=='failed')||task.attempt>MAX_TASK_RETRIES)throw Error('当前任务不可重试或已达到 10 次重试上限');if(task.attempt>run.maxRetries){run.maxRetries=MAX_TASK_RETRIES;log(run,'用户明确重试，将本轮单步骤重试上限扩展为 10 次。','用户');}task.status='pending';task.jobId=undefined;task.error='';run.status='running';log(run,rejected400?'用户重新执行被执行器明确拒绝的请求':'用户请求重试已确认失败的任务','用户');
+ if(!task||!['blocked','failed','unknown'].includes(task.status)||task.attempt>MAX_TASK_RETRIES)throw Error('当前任务不可重新执行或已达到 10 次重试上限');if(task.attempt>run.maxRetries){run.maxRetries=MAX_TASK_RETRIES;log(run,'用户明确重试，将本轮单步骤重试上限扩展为 10 次。','用户');}task.status='pending';task.jobId=undefined;task.error='';run.status='running';log(run,'用户重新执行当前异常步骤','用户');
  }else if(b.action==='manual'){
  if(!task||['running','unknown'].includes(task.status)||['completed','cancelled'].includes(run.status))throw Error('外部任务状态未确认或运行已结束，不能人工覆盖');if(task.gate&&!task.approved)throw Error('此步骤需要先审批');if(!clean(b.summary)||!clean(b.evidence))throw Error('人工接管必须提供结果和证据');task.status='manual';task.error='';task.result={summary:clean(b.summary),evidence:clean(b.evidence),source:'人工接管',cost:0};log(run,task.name+'由用户接管完成；不是 Agent 自动执行结果','用户');run.status=current(run)?'paused':'completed';
  }else if(b.action==='advance'||b.action==='reconcile'){
