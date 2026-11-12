@@ -16,6 +16,7 @@ class ClaudeFixture(BaseHTTPRequestHandler):
     calls = []
     develop_round = 0
     develop_path = "sample.py"
+    count_available = True
 
     def log_message(self, *_args):
         pass
@@ -25,6 +26,14 @@ class ClaudeFixture(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(size))
         self.__class__.calls.append((self.path, body, dict(self.headers)))
         if self.path == "/v1/messages/count_tokens":
+            if not self.__class__.count_available:
+                raw = json.dumps({"error": "count unavailable"}).encode()
+                self.send_response(503)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+                return
             payload = {"input_tokens": 100}
         elif self.path == "/v1/messages" and body["model"] == "claude-develop-fixture":
             self.__class__.develop_round += 1
@@ -85,6 +94,7 @@ def adapter_env(port):
             "CLAUDE_CACHE_WRITE_USD_PER_1M": "1.25",
             "CLAUDE_DEVELOP_MODEL": "claude-develop-fixture",
             "CLAUDE_REVIEW_MODEL": "claude-review-fixture",
+            "CLAUDE_SPEC_MODEL": "claude-spec-fixture",
             "CLAUDE_MAX_OUTPUT_TOKENS": "256",
             "XLLOOP_BRANCH_PREFIX": "xlloop/",
             "XLLOOP_ALLOWED_BRANCHES": "xlloop/fixture",
@@ -143,6 +153,12 @@ with tempfile.TemporaryDirectory() as directory:
     thread.start()
     try:
         env = adapter_env(server.server_port)
+        ClaudeFixture.count_available = False
+        specified = run_adapter(repo, "spec", env)
+        assert specified["status"] == "succeeded", specified
+        assert specified["metrics"]["token_count_fallbacks"] == 1
+        assert specified["metrics"]["provider"] == "anthropic"
+        ClaudeFixture.count_available = True
         developed = run_adapter(repo, "develop", env)
         assert developed["status"] == "succeeded", developed
         assert developed["metrics"]["provider"] == "anthropic"

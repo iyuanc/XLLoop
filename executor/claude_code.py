@@ -38,6 +38,10 @@ class ProviderStateUnknown(AdapterError):
     pass
 
 
+class TokenCountUnavailable(AdapterError):
+    pass
+
+
 def emit(payload: dict) -> None:
     print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
@@ -509,20 +513,34 @@ def api_request(path: str, payload: dict, *, inference: bool) -> dict:
         message = exc.read(2000).decode("utf-8", errors="replace")
         if inference:
             raise ProviderStateUnknown(f"Claude 请求失败（HTTP {exc.code}），费用状态未知：{message}") from None
+        if exc.code in {404, 405, 500, 502, 503, 504}:
+            raise TokenCountUnavailable(f"Claude Token 计数接口不可用（HTTP {exc.code}）") from None
         raise AdapterError(f"Claude Token 计数失败（HTTP {exc.code}）：{message}") from None
     except (URLError, TimeoutError) as exc:
         if inference:
             raise ProviderStateUnknown("Claude 请求状态未知，请核对供应商用量后再重试") from exc
-        raise AdapterError("Claude Token 计数服务不可用") from exc
+        raise TokenCountUnavailable("Claude Token 计数服务不可用") from exc
     if len(raw) > MAX_RESPONSE_BYTES:
-        raise ProviderStateUnknown("Claude 响应超过大小限制，费用状态未知")
+        if inference:
+            raise ProviderStateUnknown("Claude 响应超过大小限制，费用状态未知")
+        raise TokenCountUnavailable("Claude Token 计数响应超过大小限制")
     try:
         result = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ProviderStateUnknown("Claude 返回无效 JSON，费用状态未知") from exc
+        if inference:
+            raise ProviderStateUnknown("Claude 返回无效 JSON，费用状态未知") from exc
+        raise TokenCountUnavailable("Claude Token 计数返回无效 JSON") from exc
     if not isinstance(result, dict):
-        raise ProviderStateUnknown("Claude 返回格式无效，费用状态未知")
+        if inference:
+            raise ProviderStateUnknown("Claude 返回格式无效，费用状态未知")
+        raise TokenCountUnavailable("Claude Token 计数返回格式无效")
     return result
+
+
+def conservative_input_tokens(payload: dict) -> int:
+    """Return a deliberately high local estimate used only for budget admission."""
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return len(encoded) + 4096
 
 
 def usage_cost(usage: dict, rates: dict[str, Decimal]) -> Decimal:
@@ -620,6 +638,7 @@ def main() -> None:
         }
         request_ids: list[str] = []
         final_text = ""
+        token_count_fallbacks = 0
 
         for _ in range(max_steps):
             body: dict[str, object] = {
@@ -631,12 +650,16 @@ def main() -> None:
             if tools:
                 body["tools"] = tools
             count_body = {key: value for key, value in body.items() if key != "max_tokens"}
-            counted = api_request(
-                "/v1/messages/count_tokens", count_body, inference=False
-            )
-            input_tokens = counted.get("input_tokens")
-            if not isinstance(input_tokens, int) or input_tokens < 0:
-                raise AdapterError("Claude Token 计数响应无效")
+            try:
+                counted = api_request(
+                    "/v1/messages/count_tokens", count_body, inference=False
+                )
+                input_tokens = counted.get("input_tokens")
+                if not isinstance(input_tokens, int) or input_tokens < 0:
+                    raise TokenCountUnavailable("Claude Token 计数响应无效")
+            except TokenCountUnavailable:
+                input_tokens = conservative_input_tokens(count_body)
+                token_count_fallbacks += 1
             conservative_input_rate = max(
                 rates["input"], rates["cache_read"], rates["cache_write"]
             )
@@ -751,6 +774,7 @@ def main() -> None:
         evidence = (
             f"Claude requests: {', '.join(request_ids) or 'unknown'}；模型 {model}；"
             f"任务 {task}；分支 {branch or 'N/A'}；费用 ${spent:.8f}；"
+            f"Token 预算预检本地保守估算 {token_count_fallbacks} 次；"
             f"修改文件 {', '.join(current_changes) or '无'}；"
             f"最终检查 {', '.join(r['name'] + ('=PASS' if r['passed'] else '=FAIL') for r in check_results) or '无'}。\n"
             f"{report[:4000]}"
@@ -768,6 +792,7 @@ def main() -> None:
                     "branch": branch,
                     "changed_files": current_changes,
                     "checks": check_results,
+                    "token_count_fallbacks": token_count_fallbacks,
                     **usage_total,
                 },
             }
