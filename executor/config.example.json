@@ -65,7 +65,8 @@
         "XLLOOP_CHECK_COMMANDS_JSON",
         "XLLOOP_CHECK_TIMEOUT_SECONDS",
         "XLLOOP_REQUIRED_DEVELOP_CHECKS",
-        "XLLOOP_REQUIRED_REVIEW_CHECKS"
+        "XLLOOP_REQUIRED_REVIEW_CHECKS",
+        "XLLOOP_REQUIRED_TEST_CHECKS"
       ],
       "tasks": {
         "spec": {
@@ -84,6 +85,18 @@
           "command": [
             "/usr/bin/python3.14",
             "/opt/xlloop/adapters/claude_code.py"
+          ]
+        },
+        "test": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/fixed_pipeline.py"
+          ]
+        },
+        "preview": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/fixed_pipeline.py"
           ]
         },
         "retro": {

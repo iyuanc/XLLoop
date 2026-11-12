@@ -5,7 +5,7 @@
 ## 部署
 
 1. 在隔离的执行主机安装 Python 3.11+，复制 config.example.json 为受保护的 config.json。为每个项目指定独立工作目录、仓库和业务范围。
-2. 在 `tasks` 中配置经管理员审查的固定 Agent 命令数组。本包仅包含 Claude 代码任务适配器；业务分析默认转人工，其它公司 Agent 仍需单独实现。不要让请求中的自然语言直接作为 shell 命令。
+2. 在 `tasks` 中配置经管理员审查的固定 Agent 命令数组。本包包含 Claude 代码任务适配器，以及零模型费用的 CI / 构建预览验收适配器；业务分析默认转人工，其它公司 Agent 仍需单独实现。不要让请求中的自然语言直接作为 shell 命令。
 3. 通过主机密钥管理配置 `XLLOOP_RUNNER_TOKEN`（至少 32 字符），将模型和业务工具凭据只提供给所需任务的隔离环境，并列入 `env_allowlist`。不要把密钥写入网站项目记忆、仓库或运行日志。
 4. 启动：`python3 runner.py --config /secure/config.json --db /persistent/jobs.sqlite`。默认仅绑定 127.0.0.1:8788；使用 HTTPS 反向代理及访问控制，不要直接向公网开放 HTTP。
 5. 在 XLLoop 网站服务端配置 `XLLOOP_RUNNER_URL` 和同一个 `XLLOOP_RUNNER_TOKEN`。同机部署可使用 `http://127.0.0.1:8788`；非本机地址必须使用 HTTPS。在“项目记忆”填写与管理员配置完全一致的目标，在“工具接入”检查能力。
@@ -52,6 +52,12 @@ SQLite 先写作业，再执行。相同 id 和相同请求只执行一次；同
 可用 `XLLOOP_ALLOWED_BRANCHES` 再配置精确分支白名单。适配器本身不提供 commit、push、分支切换、部署或任意 shell 工具。开发完成后先保留未提交 diff 和验证证据；只有具备技术配置权限的人员在网页再次确认，网关才为单个仓库提交并推送新的 `xlloop/*` 分支。合并与上线继续由 GitLab 和发布流程单独审批。密钥只放在 `/etc/xlloop/runner.env`，可用 `CLAUDE_DEVELOP_MODEL`、`CLAUDE_REVIEW_MODEL` 等变量分别选模型。对应的输入、输出及缓存费率必须按供应商当前价格填写。
 
 允许执行的检查必须以固定参数数组写入 `XLLOOP_CHECK_COMMANDS_JSON`，例如 `'{"build":["pnpm","build"]}'`，不得把任务文本拼成命令。适配器先调用 token 计数接口做预算上限预检，再按响应实际用量结算；若请求结果不明确，不会把费用记为零。
+
+## CI 构建与预览验收适配器
+
+`fixed_pipeline.py` 支持 `test` 和 `preview`。它只运行 `XLLOOP_CHECK_COMMANDS_JSON` 中由管理员固定配置、并在仓库配置中勾选的检查名称，不使用 shell、不接收任务文本作为命令，也不调用模型，费用固定为 0。检查失败会把命令输出返回页面；成功会记录仓库、分支、提交、差异摘要和每项检查结果。
+
+`test` 代表已配置的 CI 构建与业务流程检查；只配置 `build` 时，不能声称业务流程测试已经执行。`preview` 生成构建差异预览与验收报告，不会冒充公开部署，也不会返回虚假的预览网址。需要可交互的公网预览时，必须另行接入经过授权的预览发布服务，并配置真实 HTTPS 地址。
 
 ## 项目多仓库配置
 

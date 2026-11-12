@@ -23,6 +23,7 @@ LEGACY_OPENAI_ENV = {
 }
 
 CLAUDE_TASKS = ("spec", "develop", "review", "retro")
+PIPELINE_TASKS = ("test", "preview")
 CLAUDE_ENV = [
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_BASE_URL",
@@ -45,6 +46,7 @@ CLAUDE_ENV = [
     "XLLOOP_CHECK_TIMEOUT_SECONDS",
     "XLLOOP_REQUIRED_DEVELOP_CHECKS",
     "XLLOOP_REQUIRED_REVIEW_CHECKS",
+    "XLLOOP_REQUIRED_TEST_CHECKS",
 ]
 for task in CLAUDE_TASKS:
     prefix = f"CLAUDE_{task.upper()}"
@@ -151,11 +153,28 @@ def configure_claude(projects: dict, python: str, adapter: str | None) -> None:
                 task_config["command"] = [python, adapter]
 
 
+def configure_pipeline(projects: dict, python: str, adapter: str | None) -> None:
+    if not adapter:
+        return
+    for project in projects.values():
+        if not isinstance(project, dict):
+            continue
+        tasks = project.setdefault("tasks", {})
+        if not isinstance(tasks, dict):
+            tasks = {}
+            project["tasks"] = tasks
+        for task in PIPELINE_TASKS:
+            task_config = tasks.setdefault(task, {})
+            if isinstance(task_config, dict) and not task_config.get("command"):
+                task_config["command"] = [python, adapter]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--python", required=True)
     parser.add_argument("--claude-adapter")
+    parser.add_argument("--pipeline-adapter")
     parser.add_argument("--env-file")
     parser.add_argument("--runtime-path")
     parser.add_argument("--registry")
@@ -184,6 +203,7 @@ def main() -> None:
         if value.startswith("Fill the exact"):
             project[key] = ""
     configure_claude(projects, args.python, args.claude_adapter)
+    configure_pipeline(projects, args.python, args.pipeline_adapter)
 
     atomic_json(path, config)
     if args.registry:
@@ -195,6 +215,7 @@ def main() -> None:
             migrate_worktree_paths(registry)
             remove_legacy_openai(registry)
             configure_claude(registry, args.python, args.claude_adapter)
+            configure_pipeline(registry, args.python, args.pipeline_adapter)
             atomic_json(registry_path, registry)
     if args.env_file:
         update_env_file(Path(args.env_file), args.runtime_path)

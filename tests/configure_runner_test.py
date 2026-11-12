@@ -67,6 +67,8 @@ with tempfile.TemporaryDirectory() as directory:
             sys.executable,
             "--claude-adapter",
             str(ROOT / "executor" / "claude_code.py"),
+            "--pipeline-adapter",
+            str(ROOT / "executor" / "fixed_pipeline.py"),
             "--registry",
             str(registry_path),
             "--env-file",
@@ -85,9 +87,13 @@ with tempfile.TemporaryDirectory() as directory:
     assert "OPENAI_API_KEY" not in config["projects"]["ybirds"]["env_allowlist"]
     assert "SSL_CERT_FILE" in config["projects"]["ybirds"]["env_allowlist"]
     assert config["projects"]["ybirds"]["tasks"]["spec"]["command"][1].endswith("claude_code.py")
+    assert config["projects"]["ybirds"]["tasks"]["test"]["command"][1].endswith("fixed_pipeline.py")
+    assert config["projects"]["ybirds"]["tasks"]["preview"]["command"][1].endswith("fixed_pipeline.py")
     assert "OPENAI_MODEL" not in registry["project-one"]["env_allowlist"]
     assert "SSL_CERT_FILE" in registry["project-one"]["env_allowlist"]
     assert registry["project-one"]["tasks"]["spec"]["command"][1].endswith("claude_code.py")
+    assert registry["project-one"]["tasks"]["test"]["command"][1].endswith("fixed_pipeline.py")
+    assert registry["project-one"]["tasks"]["preview"]["command"][1].endswith("fixed_pipeline.py")
     assert "analysis" not in registry["project-one"]["tasks"]
     env_text = env_path.read_text(encoding="utf-8")
     assert "OPENAI_API_KEY" not in env_text

@@ -124,6 +124,8 @@ install -o root -g "${APP_USER}" -m 750 \
   "${APP_DIR}/executor/runner.py" "${RUNNER_DIR}/runner.py"
 install -o root -g "${APP_USER}" -m 750 \
   "${APP_DIR}/executor/claude_code.py" "${ADAPTER_DIR}/claude_code.py"
+install -o root -g "${APP_USER}" -m 750 \
+  "${APP_DIR}/executor/fixed_pipeline.py" "${ADAPTER_DIR}/fixed_pipeline.py"
 rm -f "${ADAPTER_DIR}/openai_analysis.py"
 if [[ ! -f "${RUNNER_CONFIG}" ]]; then
   install -o root -g "${APP_USER}" -m 640 \
@@ -133,6 +135,7 @@ fi
   --config "${RUNNER_CONFIG}" \
   --python "${PYTHON_BIN}" \
   --claude-adapter "${ADAPTER_DIR}/claude_code.py" \
+  --pipeline-adapter "${ADAPTER_DIR}/fixed_pipeline.py" \
   --env-file "${RUNNER_ENV}" \
   --runtime-path "${RUNNER_PATH}" \
   --registry "${RUNTIME_DIR}/projects.json"
