@@ -181,6 +181,9 @@ class Gateway:
    if status=='published': self.git(target,'push','--porcelain','origin','HEAD:refs/heads/'+work,timeout=300)
    row.update(head=commit[:12],dirty=False,remotePublished=True,publishedAt=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),publishedCommit=commit)
    self.save_registry()
+   marker_value=self.git(target,'rev-parse','--git-path','xlloop-develop-owner.json').strip();marker=Path(marker_value) if Path(marker_value).is_absolute() else (target/marker_value).resolve();git_dir=Path(self.git(target,'rev-parse','--absolute-git-dir').strip()).resolve()
+   try: marker.relative_to(git_dir);marker.unlink(missing_ok=True)
+   except (ValueError,OSError): pass
   return {'project':project,'repositoryId':repo_id,'branch':work,'commit':commit,'message':message.strip(),'status':status,'rebasedToBase':rebased_to_base}
  def capabilities(self, project):
   p=self.project(project)
@@ -193,6 +196,7 @@ class Gateway:
  def submit(self, body):
   job_id=body.get('id',''); project=body.get('project'); task=body.get('task')
   if not isinstance(job_id,str) or not re.fullmatch(r'[A-Za-z0-9-]{1,150}',job_id): raise ValueError('Invalid idempotency id')
+  if task=='develop' and (not isinstance(body.get('runId'),str) or not re.fullmatch(r'[A-Za-z0-9-]{1,150}',body['runId'])): raise ValueError('Development task requires a valid run id')
   if task=='triage_feedback' and body.get('scope')!='analysis-only': raise ValueError('Feedback triage is analysis-only')
   if task=='discover_projects' and (project!='opportunity-research' or body.get('scope')!='research-only'): raise ValueError('Discovery requires isolated research project and scope')
   p=self.project(project); command=p.get('tasks',{}).get(task,{}).get('command')
@@ -221,6 +225,13 @@ class Gateway:
    allowed=['PATH','HOME','LANG','TMPDIR','XDG_CONFIG_HOME','XDG_DATA_HOME','PNPM_HOME']+p.get('env_allowlist',[])
    env={k:os.environ[k] for k in allowed if k in os.environ}
    env.update(XLLOOP_JOB_ID=job_id,XLLOOP_PROJECT=body['project'],XLLOOP_MAX_ADDITIONAL_COST=str(body['budget']['maxAdditionalCost']))
+   if body.get('task')=='develop':
+    with self.connect() as db: prior=db.execute("SELECT request FROM jobs WHERE project=? AND id<>? AND status='failed' ORDER BY created DESC LIMIT 50",(body['project'],job_id)).fetchall()
+    for saved in prior:
+     try: request=json.loads(saved[0])
+     except (TypeError,json.JSONDecodeError): continue
+     if request.get('task')=='develop' and request.get('runId')==body.get('runId'):
+      env['XLLOOP_ALLOW_UNCLAIMED_RETRY']='1';break
    if p.get('repositories'): env['XLLOOP_REPOSITORIES_JSON']=json.dumps(p['repositories'],ensure_ascii=False)
    proc=subprocess.Popen(command,cwd=workdir,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env=env,start_new_session=True)
    out,err=proc.communicate(json.dumps(body),timeout=min(1800,max(10,p.get('timeout_seconds',300))))

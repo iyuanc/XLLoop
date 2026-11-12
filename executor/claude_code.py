@@ -108,7 +108,38 @@ def git(root: Path, *args: str, timeout: int = 30) -> str:
     return result.stdout
 
 
-def repository_context(task: str) -> tuple[Path | None, str]:
+def allow_develop_continuation(repo_root: Path, repo_id: str, run_id: str, access: str = "edit") -> None:
+    status = git(repo_root, "status", "--porcelain").strip()
+    git_path = Path(git(repo_root, "rev-parse", "--git-path", "xlloop-develop-owner.json").strip())
+    marker = git_path if git_path.is_absolute() else (repo_root / git_path).resolve()
+    head = git(repo_root, "rev-parse", "HEAD").strip()
+    owner: dict = {}
+    if marker.is_file():
+        try:
+            parsed = json.loads(marker.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                owner = parsed
+        except (OSError, json.JSONDecodeError):
+            owner = {}
+    def claim() -> None:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        temporary = marker.with_name(marker.name + ".tmp")
+        temporary.write_text(json.dumps({"runId": run_id, "head": head}), encoding="utf-8")
+        temporary.replace(marker)
+    if status:
+        same_run = owner.get("runId") == run_id and owner.get("head") == head
+        legacy_retry = access != "read" and not marker.exists() and os.environ.get("XLLOOP_ALLOW_UNCLAIMED_RETRY") == "1"
+        if legacy_retry:
+            claim()
+            return
+        if access == "read" or not same_run:
+            label = f"仓库 {repo_id}" if repo_id else "隔离 worktree"
+            raise AdapterError(f"{label} 存在不属于本次运行的未提交改动，不能继续开发")
+        return
+    claim()
+
+
+def repository_context(task: str, run_id: str = "") -> tuple[Path | None, str]:
     global ACTIVE_REPOSITORIES
     ACTIVE_REPOSITORIES = {}
     if task not in REPOSITORY_TASKS:
@@ -139,12 +170,13 @@ def repository_context(task: str) -> tuple[Path | None, str]:
             branch = git(repo_root, "branch", "--show-current").strip()
             if branch != row.get("workBranch"):
                 raise AdapterError(f"仓库 {repo_id} 不在授权工作分支")
-            if task in MUTATING_TASKS and git(repo_root, "status", "--porcelain").strip():
-                raise AdapterError(f"开发任务开始前仓库 {repo_id} 必须没有未提交改动")
+            access = "read" if row.get("access") == "read" else "edit"
+            if task in MUTATING_TASKS:
+                allow_develop_continuation(repo_root, repo_id, run_id, access)
             ACTIVE_REPOSITORIES[repo_id] = {
                 "root": repo_root,
                 "branch": branch,
-                "access": "read" if row.get("access") == "read" else "edit",
+                "access": access,
                 "checks": [str(x) for x in row.get("checks", []) if isinstance(x, str)],
             }
             branches.append(f"{repo_id}:{branch}")
@@ -186,8 +218,8 @@ def repository_context(task: str) -> tuple[Path | None, str]:
         raise AdapterError("当前隔离分支不在管理员授权列表中")
     if prefix and not branch.startswith(prefix):
         raise AdapterError(f"隔离分支必须以 {prefix} 开头")
-    if task in MUTATING_TASKS and git(root, "status", "--porcelain").strip():
-        raise AdapterError("开发任务开始前隔离 worktree 必须没有未提交改动")
+    if task in MUTATING_TASKS:
+        allow_develop_continuation(root, "", run_id)
     return root, branch
 
 
@@ -618,7 +650,10 @@ def main() -> None:
     try:
         job = read_job()
         task = job["task"]
-        root, branch = repository_context(task)
+        run_id = job.get("runId", "")
+        if task in MUTATING_TASKS and (not isinstance(run_id, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,150}", run_id)):
+            raise AdapterError("开发任务缺少有效运行编号")
+        root, branch = repository_context(task, run_id)
         checks = parse_checks()
         model = env_for_task(task, "MODEL")
         if not model:

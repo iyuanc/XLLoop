@@ -3,8 +3,8 @@ spec=importlib.util.spec_from_file_location('runner','executor/runner.py');m=imp
 class TestGateway(unittest.TestCase):
  def test_execution(self):
   with tempfile.TemporaryDirectory() as d:
-   script=pathlib.Path(d)/'agent.py';script.write_text('import json,sys\nb=json.load(sys.stdin)\nprint(json.dumps({"status":"succeeded","summary":b["command"],"evidence":"Fixture, not real agent work","cost":0.1}))')
-   p={'cwd':d,'repo':'authorized','environment':'staging','max_cost_per_job':20,'tasks':{'analysis':{'command':[sys.executable,str(script)]},'deploy':{'command':[sys.executable,str(script)]}}}
+   script=pathlib.Path(d)/'agent.py';script.write_text('import json,os,sys\nb=json.load(sys.stdin)\nprint(json.dumps({"status":"succeeded","summary":b["command"],"evidence":"Fixture, not real agent work","cost":0.1,"metrics":{"allow_dirty_retry":os.environ.get("XLLOOP_ALLOW_UNCLAIMED_RETRY","")}}))')
+   p={'cwd':d,'repo':'authorized','environment':'staging','max_cost_per_job':20,'tasks':{'analysis':{'command':[sys.executable,str(script)]},'develop':{'command':[sys.executable,str(script)]},'deploy':{'command':[sys.executable,str(script)]}}}
    g=m.Gateway({'projects':{'ybirds':p}},str(pathlib.Path(d)/'jobs.sqlite'))
    try:
     self.assertIn('model',g.capabilities('ybirds'));self.assertNotIn('analytics',g.capabilities('ybirds'))
@@ -20,6 +20,14 @@ class TestGateway(unittest.TestCase):
     with self.assertRaises(ValueError):g.submit({**b,'id':'denied','task':'deploy'})
     with self.assertRaises(ValueError):g.submit({**b,'id':'scope','settings':{'repo':'outside','environment':'staging'}})
     with self.assertRaises(ValueError):g.submit({**b,'id':'budget','budget':{'maxAdditionalCost':21}})
+    prior={**b,'id':'prior-develop','runId':'run-one','task':'develop'}
+    with g.connect() as db: db.execute('INSERT INTO jobs(id,project,status,request,created) VALUES(?,?,?,?,?)',(prior['id'],prior['project'],'failed',json.dumps(prior),time.time()))
+    retry={**b,'id':'retry-develop','runId':'run-one','task':'develop'};self.assertEqual(g.submit(retry)[0],202)
+    for _ in range(100):
+     _,retry_result=g.get('retry-develop')
+     if retry_result.get('status')=='succeeded':break
+     time.sleep(.01)
+    self.assertEqual(retry_result['metrics']['allow_dirty_retry'],'1')
     self.assertEqual(g.get('missing')[0],404)
    finally:g.pool.shutdown(wait=True)
  def test_multi_repository_registry(self):

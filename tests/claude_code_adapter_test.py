@@ -120,9 +120,10 @@ def adapter_env(port):
     return env
 
 
-def run_adapter(repo, task, env):
+def run_adapter(repo, task, env, run_id="fixture-run"):
     job = {
         "id": f"fixture-{task}",
+        "runId": run_id,
         "project": "ybirds",
         "task": task,
         "command": "将 sample.py 的返回值改为 2" if task == "develop" else "审查当前修改",
@@ -182,6 +183,19 @@ with tempfile.TemporaryDirectory() as directory:
         assert subprocess.run(
             ["git", "rev-list", "--count", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
         ).stdout.strip() == "1"
+        continued = run_adapter(repo, "develop", env)
+        assert continued["status"] == "succeeded", continued
+        foreign = run_adapter(repo, "develop", env, "another-run")
+        assert foreign == {
+            "status": "failed",
+            "error": "隔离 worktree 存在不属于本次运行的未提交改动，不能继续开发",
+            "cost": 0.0,
+        }
+        (repo / ".git" / "xlloop-develop-owner.json").unlink()
+        legacy_env = dict(env)
+        legacy_env["XLLOOP_ALLOW_UNCLAIMED_RETRY"] = "1"
+        adopted = run_adapter(repo, "develop", legacy_env, "legacy-run")
+        assert adopted["status"] == "succeeded", adopted
 
         before_review = (repo / "sample.py").read_bytes()
         reviewed = run_adapter(repo, "review", env)
