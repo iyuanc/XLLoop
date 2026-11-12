@@ -10,7 +10,7 @@ const opp=load('app/api/opportunities/route.ts'),org=load('app/api/organization/
 await access.GET(req('access','owner'));
 async function organization(action,body){const w=await store.workspace(DB);const r=await org.POST(req('organization','owner','POST',{action,revision:w.revision,...body}));assert.equal(r.status,200,await r.text());}
 async function member(uid,extra){let w=await store.workspace(DB);let r=await access.POST(req('access','owner','POST',{action:'member',revision:w.revision,member:{email:uid+'@example.test',enabled:true,grants:[],...extra}}));assert.equal(r.status,200,await r.text());await access.GET(req('access',uid));}
-await member('engineer',{teams:[{team:'dev1',roles:['developer','product']}],sharedOps:true,executionBudgetLimit:10});await member('user',{});
+await member('engineer',{teams:[{team:'dev1',roles:['developer','product']}],sharedOps:true,executionBudgetLimit:0});await member('user',{});
 async function post(action,body){const w=await store.workspace(DB);return opp.POST(req('opportunities','owner','POST',{action,revision:w.revision,...body}));}
 const proposal={title:'内部CRM',projectType:'internal',problem:'跟进遗漏',customer:'内部顾问',evidence:'员工反馈，尚待验证',value:'减少遗漏',plan:'开发试点再验收',validation:'使用者确认流程',risks:'不自动推广',owner:'QA',deadline:'2099-01-01',budget:30};
 let r=await post('submit',{proposal});let id=(await r.json()).id;
