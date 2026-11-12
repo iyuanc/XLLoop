@@ -17,6 +17,7 @@ CAPS.update({'scan_internal':['analytics','model'],'scan_competitors':['web','mo
 CAPS['discover_projects']=['opportunities','web','model']
 CAPS['triage_feedback']=['feedback_triage','model']
 GATED = {'deploy','recovery','growth'}
+class SafeJobError(Exception): pass
 class Gateway:
  def __init__(self, config, database, registry=None):
   self.config=config; self.database=database; self.registry_path=Path(registry).resolve() if registry else None; self.registry={}; self.lock=threading.Lock(); self.provision_lock=threading.Lock(); self.pool=concurrent.futures.ThreadPoolExecutor(max_workers=2)
@@ -66,6 +67,61 @@ class Gateway:
   self.git(None,'check-ref-format','--branch',value,timeout=10)
   if work and (value in {'main','master','production','release'} or not value.startswith('xlloop/')): raise ValueError('Working branch must use xlloop/ and cannot be protected')
   return value
+ def failed_develop_retry(self,body):
+  if body.get('task')!='develop': return False
+  with self.connect() as db: prior=db.execute("SELECT request FROM jobs WHERE project=? AND id<>? AND status='failed' ORDER BY created DESC LIMIT 50",(body['project'],body['id'])).fetchall()
+  for saved in prior:
+   try: request=json.loads(saved[0])
+   except (TypeError,json.JSONDecodeError): continue
+   if request.get('task')=='develop' and request.get('runId')==body.get('runId'): return True
+  return False
+ def continuation_marker(self,target):
+  value=self.git(target,'rev-parse','--git-path','xlloop-develop-owner.json').strip();marker=Path(value) if Path(value).is_absolute() else (target/value).resolve();git_dir=Path(self.git(target,'rev-parse','--absolute-git-dir').strip()).resolve()
+  try: marker.relative_to(git_dir)
+  except ValueError: raise SafeJobError('Development continuation marker is outside repository metadata') from None
+  return marker
+ def prepare_development(self,body,p,allow_dirty_retry=False):
+  if body.get('task')!='develop' or not isinstance(p.get('repositories'),list): return
+  policy=self.config.get('provisioning',{});commit_name=str(policy.get('commit_name') or 'XLLoop Automation')[:100];commit_email=str(policy.get('commit_email') or 'xlloop@localhost')[:200]
+  with self.provision_lock:
+   changed=False
+   for row in p['repositories']:
+    if not isinstance(row,dict) or row.get('enabled') is False: continue
+    target=Path(row.get('path','')).resolve();base=self.repository_branch(row.get('baseBranch') or 'master');work=self.repository_branch(row.get('workBranch'),True)
+    if not (target/'.git').exists() or self.git(target,'branch','--show-current').strip()!=work: raise SafeJobError('开发前仓库不在授权工作分支')
+    if self.git(target,'diff','--name-only','--diff-filter=U').strip(): raise SafeJobError('开发前仓库存在未解决冲突')
+    dirty=bool(self.git(target,'status','--porcelain').strip());original_head=self.git(target,'rev-parse','HEAD').strip();marker=self.continuation_marker(target);owner={}
+    if marker.is_file():
+     try: owner=json.loads(marker.read_text(encoding='utf-8'))
+     except (OSError,json.JSONDecodeError): owner={}
+    if dirty and not (isinstance(owner,dict) and owner.get('runId')==body.get('runId') and owner.get('head')==original_head) and not (not marker.exists() and allow_dirty_retry): raise SafeJobError('开发前仓库存在不属于本次运行的未提交改动')
+    self.git(target,'fetch','--no-tags','origin',base)
+    if self.git_process(target,'merge-base','--is-ancestor','origin/'+base,'HEAD').returncode==0: continue
+    stash_commit=''
+    if dirty:
+     self.git(target,'stash','push','--include-untracked','-m','xlloop-develop-base-sync');stash_commit=self.git(target,'rev-parse','refs/stash').strip()
+    remote=self.git_process(target,'ls-remote','--exit-code','--heads','origin','refs/heads/'+work)
+    try:
+     if remote.returncode==2 and str(row.get('publishedCommit') or '')==original_head: self.git(target,'reset','--hard','origin/'+base)
+     elif remote.returncode not in (0,2): raise SafeJobError((remote.stderr or '无法核对远程工作分支')[-1000:])
+     elif self.git_process(target,'merge-base','--is-ancestor','HEAD','origin/'+base).returncode==0: self.git(target,'merge','--ff-only','origin/'+base)
+     else: self.git(target,'-c','user.name='+commit_name,'-c','user.email='+commit_email,'merge','--no-edit','origin/'+base)
+     if stash_commit:
+      applied=self.git_process(target,'stash','apply','--index',stash_commit)
+      if applied.returncode: raise SafeJobError('本轮修改与最新 master/main 冲突')
+      self.git(target,'stash','drop','stash@{0}')
+     changed=True
+     if dirty:
+      marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'runId':body.get('runId'),'head':self.git(target,'rev-parse','HEAD').strip()}),encoding='utf-8')
+     row.update(head=self.git(target,'rev-parse','--short','HEAD').strip(),dirty=bool(self.git(target,'status','--porcelain').strip()))
+    except Exception as exc:
+     self.git_process(target,'merge','--abort');self.git(target,'reset','--hard',original_head);self.git(target,'clean','-fd')
+     if stash_commit:
+      restored=self.git_process(target,'stash','apply','--index',stash_commit)
+      if restored.returncode: raise SafeJobError('同步 master/main 失败，原修改保存在 Git stash，需要管理员恢复') from exc
+      self.git(target,'stash','drop','stash@{0}')
+     raise SafeJobError(str(exc) if isinstance(exc,SafeJobError) else '合并最新 master/main 失败，已恢复本轮原始修改') from exc
+   if changed and self.registry_path and body.get('project') in self.registry: self.save_registry()
  def provision_repository(self,project_root,item,allowed_hosts):
   if not isinstance(item,dict): raise ValueError('Repository configuration is invalid')
   repo_id=str(item.get('id') or '').lower()
@@ -225,13 +281,9 @@ class Gateway:
    allowed=['PATH','HOME','LANG','TMPDIR','XDG_CONFIG_HOME','XDG_DATA_HOME','PNPM_HOME']+p.get('env_allowlist',[])
    env={k:os.environ[k] for k in allowed if k in os.environ}
    env.update(XLLOOP_JOB_ID=job_id,XLLOOP_PROJECT=body['project'],XLLOOP_MAX_ADDITIONAL_COST=str(body['budget']['maxAdditionalCost']))
-   if body.get('task')=='develop':
-    with self.connect() as db: prior=db.execute("SELECT request FROM jobs WHERE project=? AND id<>? AND status='failed' ORDER BY created DESC LIMIT 50",(body['project'],job_id)).fetchall()
-    for saved in prior:
-     try: request=json.loads(saved[0])
-     except (TypeError,json.JSONDecodeError): continue
-     if request.get('task')=='develop' and request.get('runId')==body.get('runId'):
-      env['XLLOOP_ALLOW_UNCLAIMED_RETRY']='1';break
+   allow_dirty_retry=self.failed_develop_retry(body)
+   if allow_dirty_retry: env['XLLOOP_ALLOW_UNCLAIMED_RETRY']='1'
+   self.prepare_development(body,p,allow_dirty_retry)
    if p.get('repositories'): env['XLLOOP_REPOSITORIES_JSON']=json.dumps(p['repositories'],ensure_ascii=False)
    proc=subprocess.Popen(command,cwd=workdir,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env=env,start_new_session=True)
    out,err=proc.communicate(json.dumps(body),timeout=min(1800,max(10,p.get('timeout_seconds',300))))
@@ -243,6 +295,8 @@ class Gateway:
     cost=result.get('cost')
     if not isinstance(result.get('summary'),str) or not result.get('evidence') or not isinstance(cost,(int,float)) or not 0<=cost<1e9: raise ValueError('Agent must provide summary, evidence and actual nonnegative cost')
    self.update(job_id,result['status'],result)
+  except SafeJobError as exc:
+   self.update(job_id,'failed',{'status':'failed','error':str(exc)[:1000],'cost':0.0})
   except subprocess.TimeoutExpired:
    if proc: os.killpg(proc.pid,signal.SIGKILL); proc.communicate()
    self.update(job_id,'unknown')
