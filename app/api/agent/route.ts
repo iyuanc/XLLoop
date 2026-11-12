@@ -81,6 +81,8 @@ async function handlePOST(req:Request){
  else if(task.gate&&!task.approved){task.status='awaiting_approval';run.status='awaiting_approval';log(run,'等待用户审批：'+task.name);}
  else if(task.id==='readiness'){
  const row=await env.DB!.prepare('SELECT payload FROM project_state WHERE id=?').bind(uid+':'+b.project).first<any>();const saved=row?JSON.parse(row.payload):{records:[]};task.status='completed';task.result=audit(saved.records||[],run.settings,run.memory);run.iterations++;log(run,'已完成项目记录盘点；未把示例记录当作英鸟真实运营数据。');
+ }else if(task.id==='analysis'&&!String(run.settings.analytics||'').trim()){
+ task.status='completed';task.error='';task.result={summary:'未配置业务数据，本步骤已跳过。',evidence:'运行快照中的“分析数据源与指标口径”为空；未调用外部执行器或大模型。',cost:0,artifacts:[],metrics:{skipped:true,reason:'missing_business_data'}};run.iterations++;log(run,'未配置业务数据，已跳过业务数据分析步骤；未产生模型费用。');if(!current(run)){run.status='completed';log(run,'本次授权范围内的步骤已完成。');}
  }else if(task.id==='publish'){
  task.attempt++;run.iterations++;try{task.result=await publishWorkBranches(uid,b.project,run);task.status='completed';task.error='';log(run,task.result.metrics?.skipped?'自动推送步骤已安全跳过：'+task.result.evidence:'工作分支已自动提交并推送；未合并 master/main，也未部署。','系统');if(!current(run)){run.status='completed';log(run,'本次授权范围内的步骤已完成。');}}catch(e:any){task.status='failed';task.error=String(e.message||'自动推送失败').slice(0,1000);run.status='failed';log(run,'自动推送失败：'+task.error,'系统');}
  }else{

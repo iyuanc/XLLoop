@@ -47,7 +47,7 @@ SQLite 先写作业，再执行。相同 id 和相同请求只执行一次；同
 
 ## Claude 代码开发与审查适配器
 
-`claude_code.py` 支持 analysis、spec、develop、review、retro，并可按任务配置不同模型。analysis 只读检查授权仓库，返回 `exists`、`not_exists` 或 `unknown` 以及可复核证据；没有业务数据时仍可诊断代码，证据不足必须返回 `unknown`。开发仅允许在管理员准备的隔离 Git 工作目录中运行，分支必须使用 `xlloop/` 前缀；main、master、production、release 默认受保护。analysis 和 review 只有读取、检索、查看差异和运行固定检查的权限。
+`claude_code.py` 支持 analysis、spec、develop、review、retro，并可按任务配置不同模型。网站仅在项目已配置业务数据源时调用 analysis；未配置时直接标记该步骤已跳过，不调用大模型。analysis 返回 `exists`、`not_exists` 或 `unknown` 以及可复核证据，证据不足必须返回 `unknown`。开发仅允许在管理员准备的隔离 Git 工作目录中运行，分支必须使用 `xlloop/` 前缀；main、master、production、release 默认受保护。analysis 和 review 只有读取、检索、查看差异和运行固定检查的权限。
 
 可用 `XLLOOP_ALLOWED_BRANCHES` 再配置精确分支白名单。适配器本身不提供 commit、push、分支切换、部署或任意 shell 工具。开发完成后先保留未提交 diff 和验证证据；只有具备技术配置权限的人员在网页再次确认，网关才为单个仓库提交并推送新的 `xlloop/*` 分支。合并与上线继续由 GitLab 和发布流程单独审批。密钥只放在 `/etc/xlloop/runner.env`，可用 `CLAUDE_DEVELOP_MODEL`、`CLAUDE_REVIEW_MODEL` 等变量分别选模型。对应的输入、输出及缓存费率必须按供应商当前价格填写。
 
