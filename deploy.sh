@@ -82,6 +82,11 @@ echo "[1/8] 拉取 master 最新代码"
 git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" pull --ff-only origin master
 
 echo "[2/8] 准备目录和权限"
+install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 "${APP_HOME}"
+install -d -o "${APP_USER}" -g "${APP_USER}" -m 700 \
+  "${APP_HOME}/.config" "${APP_HOME}/.config/pnpm" \
+  "${APP_HOME}/.local" "${APP_HOME}/.local/share" \
+  "${APP_HOME}/.local/share/pnpm"
 install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 \
   "${DATA_ROOT}" "${RUNTIME_DIR}" "${WORKTREE_DIR}" \
   "${WORKTREE_DIR}/ybirds" "${LOG_DIR}"
