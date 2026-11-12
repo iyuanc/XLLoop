@@ -95,7 +95,7 @@ def remove_legacy_openai(projects: dict) -> None:
             tasks.pop("analysis", None)
 
 
-def remove_openai_env_file(path: Path) -> None:
+def update_env_file(path: Path, runtime_path: str | None = None) -> None:
     if not path.is_file():
         return
     original = path.stat()
@@ -103,6 +103,9 @@ def remove_openai_env_file(path: Path) -> None:
     lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not pattern.match(line)]
     if not any(re.match(r"^\s*(?:export\s+)?SSL_CERT_FILE\s*=", line) for line in lines):
         lines.append("SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt")
+    if runtime_path:
+        lines = [line for line in lines if not re.match(r"^\s*(?:export\s+)?PATH\s*=", line)]
+        lines.append(f"PATH={runtime_path}")
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", dir=path.parent, delete=False
     ) as handle:
@@ -154,6 +157,7 @@ def main() -> None:
     parser.add_argument("--python", required=True)
     parser.add_argument("--claude-adapter")
     parser.add_argument("--env-file")
+    parser.add_argument("--runtime-path")
     parser.add_argument("--registry")
     args = parser.parse_args()
 
@@ -193,7 +197,7 @@ def main() -> None:
             configure_claude(registry, args.python, args.claude_adapter)
             atomic_json(registry_path, registry)
     if args.env_file:
-        remove_openai_env_file(Path(args.env_file))
+        update_env_file(Path(args.env_file), args.runtime_path)
 
 
 if __name__ == "__main__":

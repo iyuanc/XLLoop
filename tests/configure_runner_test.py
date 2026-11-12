@@ -71,6 +71,8 @@ with tempfile.TemporaryDirectory() as directory:
             str(registry_path),
             "--env-file",
             str(env_path),
+            "--runtime-path",
+            "/opt/node/bin:/usr/local/bin:/usr/bin:/bin",
         ],
         check=True,
     )
@@ -91,5 +93,6 @@ with tempfile.TemporaryDirectory() as directory:
     assert "OPENAI_API_KEY" not in env_text
     assert "ANTHROPIC_API_KEY=keep-me" in env_text
     assert "SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt" in env_text
+    assert "PATH=/opt/node/bin:/usr/local/bin:/usr/bin:/bin" in env_text
 
 print("PASS: storage paths migrate and legacy OpenAI configuration is removed")

@@ -64,6 +64,8 @@ fi
 
 PNPM_BIN="$(command -v pnpm)"
 PM2_BIN="$(command -v pm2)"
+NODE_BIN="$(command -v node)"
+RUNNER_PATH="$(dirname "${NODE_BIN}"):$(dirname "${PNPM_BIN}"):/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin"
 
 if [[ ! -d "${APP_DIR}/.git" ]]; then
   echo "错误：${APP_DIR} 不是 Git 仓库，无法更新 master 代码" >&2
@@ -127,6 +129,7 @@ fi
   --python "${PYTHON_BIN}" \
   --claude-adapter "${ADAPTER_DIR}/claude_code.py" \
   --env-file "${RUNNER_ENV}" \
+  --runtime-path "${RUNNER_PATH}" \
   --registry "${RUNTIME_DIR}/projects.json"
 install -o root -g root -m 644 \
   "${APP_DIR}/deploy/systemd/xlloop-runner.service" \

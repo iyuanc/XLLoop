@@ -39,7 +39,7 @@ async function handlePOST(req:Request){
  }else if(b.action==='retry'){
  if(!task||task.status!=='failed'||task.attempt>run.maxRetries)throw Error('当前任务不可重试或已达到重试上限');task.status='pending';task.jobId=undefined;task.error='';run.status='running';log(run,'用户请求重试已确认失败的任务','用户');
  }else if(b.action==='manual'){
- if(!task||['running','unknown'].includes(task.status)||['completed','cancelled'].includes(run.status))throw Error('外部任务状态未确认或运行已结束，不能人工覆盖');if(task.gate&&!task.approved)throw Error('此步骤需要先审批');if(!clean(b.summary)||!clean(b.evidence))throw Error('人工接管必须提供结果和证据');task.status='manual';task.result={summary:clean(b.summary),evidence:clean(b.evidence),source:'人工接管',cost:0};log(run,task.name+'由用户接管完成；不是 Agent 自动执行结果','用户');run.status=current(run)?'paused':'completed';
+ if(!task||['running','unknown'].includes(task.status)||['completed','cancelled'].includes(run.status))throw Error('外部任务状态未确认或运行已结束，不能人工覆盖');if(task.gate&&!task.approved)throw Error('此步骤需要先审批');if(!clean(b.summary)||!clean(b.evidence))throw Error('人工接管必须提供结果和证据');task.status='manual';task.error='';task.result={summary:clean(b.summary),evidence:clean(b.evidence),source:'人工接管',cost:0};log(run,task.name+'由用户接管完成；不是 Agent 自动执行结果','用户');run.status=current(run)?'paused':'completed';
  }else if(b.action==='advance'||b.action==='reconcile'){
  if(!task){run.status='completed';}else{
  if(b.action==='advance'&&run.status!=='running')throw Error('运行未启动');if(b.action==='reconcile'&&!['unknown','running'].includes(task.status))throw Error('没有待核对的任务');

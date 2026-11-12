@@ -605,6 +605,7 @@ def system_prompt(task: str, branch: str, checks: dict[str, list[str]]) -> str:
 
 
 def main() -> None:
+    spent = Decimal(0)
     try:
         job = read_job()
         task = job["task"]
@@ -636,7 +637,6 @@ def main() -> None:
         messages = initial_messages(job)
         tools = tools_for(task, checks)
         system = system_prompt(task, branch, checks)
-        spent = Decimal(0)
         usage_total = {
             "input_tokens": 0,
             "output_tokens": 0,
@@ -760,7 +760,11 @@ def main() -> None:
                         result = run_check(root, name, checks, repo_id)
                         check_results.append(result)
                         if not result["passed"]:
-                            fail(f"仓库 {repo_id} 的最终检查失败：{name}；请人工检查隔离目录", spent)
+                            output = str(result.get("output") or "")[-3000:]
+                            fail(
+                                f"仓库 {repo_id} 的最终检查失败：{name}。\n{output}",
+                                spent,
+                            )
                             return
             else:
                 required_name = "XLLOOP_REQUIRED_DEVELOP_CHECKS" if task == "develop" else "XLLOOP_REQUIRED_REVIEW_CHECKS"
@@ -771,7 +775,8 @@ def main() -> None:
                     result = run_check(root, name, checks)
                     check_results.append(result)
                     if not result["passed"]:
-                        fail(f"代码已修改但最终检查失败：{name}；请人工检查隔离 worktree", spent)
+                        output = str(result.get("output") or "")[-3000:]
+                        fail(f"最终检查失败：{name}。\n{output}", spent)
                         return
             report = diff_report(root)
         else:
@@ -807,7 +812,7 @@ def main() -> None:
     except ProviderStateUnknown as exc:
         fail(str(exc), None)
     except Exception as exc:
-        fail(str(exc), 0)
+        fail(str(exc), spent)
 
 
 if __name__ == "__main__":
