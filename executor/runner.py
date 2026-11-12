@@ -143,6 +143,7 @@ class Gateway:
    if self.git(target,'branch','--show-current').strip()!=work: raise ValueError('Repository is on a different working branch')
    if self.git(target,'remote','get-url','origin').strip()!=expected: raise ValueError('Repository remote does not match configuration')
    if self.git(target,'diff','--name-only','--diff-filter=U').strip(): raise ValueError('Repository has unresolved conflicts')
+   dirty=bool(self.git(target,'status','--porcelain').strip());original_head=self.git(target,'rev-parse','HEAD').strip();rebased_to_base=False
    remote=self.git_process(target,'ls-remote','--exit-code','--heads','origin','refs/heads/'+work)
    if remote.returncode not in (0,2): raise ValueError((remote.stderr or 'Unable to verify remote working branch')[-1500:])
    self.git(target,'fetch','--no-tags','origin',base)
@@ -152,8 +153,20 @@ class Gateway:
     remote_commit=self.git(target,'rev-parse','FETCH_HEAD').strip()
    based_on_remote_base=self.git_process(target,'merge-base','--is-ancestor','origin/'+base,'HEAD').returncode==0
    continues_remote_work=bool(remote_commit) and self.git_process(target,'merge-base','--is-ancestor',remote_commit,'HEAD').returncode==0
-   if not based_on_remote_base and not continues_remote_work: raise ValueError('Working branch is neither based on the configured remote base nor a safe continuation of the remote working branch')
-   dirty=bool(self.git(target,'status','--porcelain').strip())
+   if not based_on_remote_base and not continues_remote_work:
+    published_commit=str(row.get('publishedCommit') or '')
+    if remote_commit or not dirty or published_commit!=original_head: raise ValueError('Working branch is neither based on the configured remote base nor a safe continuation of the remote working branch')
+    self.git(target,'stash','push','--include-untracked','-m','xlloop-publish-base-refresh')
+    stash_commit=self.git(target,'rev-parse','refs/stash').strip()
+    self.git(target,'reset','--hard','origin/'+base)
+    applied=self.git_process(target,'stash','apply','--index',stash_commit)
+    if applied.returncode:
+     self.git(target,'reset','--hard',original_head);self.git(target,'clean','-fd')
+     restored=self.git_process(target,'stash','apply','--index',stash_commit)
+     if restored.returncode: raise ValueError('Automatic base refresh failed and the original changes remain in the Git stash; operator recovery is required')
+     self.git(target,'stash','drop','stash@{0}')
+     raise ValueError('Current changes conflict with the updated remote base; the original working changes were restored')
+    self.git(target,'stash','drop','stash@{0}');rebased_to_base=True
    if dirty:
     self.git(target,'add','-A','--','.')
     if self.git_process(target,'diff','--cached','--quiet').returncode==0: raise ValueError('Repository has no publishable changes')
@@ -168,7 +181,7 @@ class Gateway:
    if status=='published': self.git(target,'push','--porcelain','origin','HEAD:refs/heads/'+work,timeout=300)
    row.update(head=commit[:12],dirty=False,remotePublished=True,publishedAt=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),publishedCommit=commit)
    self.save_registry()
-  return {'project':project,'repositoryId':repo_id,'branch':work,'commit':commit,'message':message.strip(),'status':status}
+  return {'project':project,'repositoryId':repo_id,'branch':work,'commit':commit,'message':message.strip(),'status':status,'rebasedToBase':rebased_to_base}
  def capabilities(self, project):
   p=self.project(project)
   return sorted({c for task,v in p.get('tasks',{}).items() if task in CAPS and v.get('command') for c in CAPS[task]})

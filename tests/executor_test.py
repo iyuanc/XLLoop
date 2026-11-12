@@ -60,5 +60,12 @@ class TestGateway(unittest.TestCase):
     self.assertEqual(updated['status'],'published');self.assertNotEqual(updated['commit'],published['commit'])
     remote_head=subprocess.run(['git','ls-remote','--heads',str(source),'refs/heads/xlloop/project-web'],check=True,capture_output=True,text=True).stdout.split()[0]
     self.assertEqual(remote_head,updated['commit'])
+    subprocess.run(['git','update-ref','-d','refs/heads/xlloop/project-web'],cwd=source,check=True)
+    (source/'BASE.md').write_text('base advanced again after merge',encoding='utf-8');(source/'README.md').write_text('changed again',encoding='utf-8');subprocess.run(['git','add','BASE.md','README.md'],cwd=source,check=True);subprocess.run(['git','commit','-m','simulate squash merge'],cwd=source,check=True,capture_output=True)
+    base_head=subprocess.run(['git','rev-parse','HEAD'],cwd=source,check=True,capture_output=True,text=True).stdout.strip()
+    (project_root/'web'/'README.md').write_text('new delivery after merged branch deletion',encoding='utf-8')
+    recreated=g.publish_repository({'project':'project-one','repositoryId':'web','message':'合并后继续交付修改','approved':True})
+    self.assertEqual(recreated['status'],'published');self.assertTrue(recreated['rebasedToBase'])
+    self.assertEqual(subprocess.run(['git','merge-base','--is-ancestor',base_head,recreated['commit']],cwd=project_root/'web').returncode,0)
    finally:g.pool.shutdown(wait=True)
 unittest.main()

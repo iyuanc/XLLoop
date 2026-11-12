@@ -5,6 +5,8 @@ function repositoryError(message:string){
  if(message==='Remote working branch has changes that are not in the local checkout; synchronize or use a new xlloop/* branch')return 'GitLab 工作分支包含本地没有的提交，不能安全推送。请先同步并核对远程改动，或配置新的 xlloop/* 工作分支。';
  if(message==='Working branch is neither based on the configured remote base nor a safe continuation of the remote working branch')return '当前工作分支既不基于最新的 master/main，也不能确认是远程工作分支的安全延续。请同步并核对分支，或配置新的 xlloop/* 工作分支。';
  if(message==='Working branch is not based on the configured remote base branch')return '当前工作分支不是从配置的最新 master/main 创建，不能安全推送。请同步并核对基准分支。';
+ if(message==='Current changes conflict with the updated remote base; the original working changes were restored')return '本轮修改与最新 master/main 存在冲突，已恢复原始工作区修改且未推送。请人工解决冲突后重试。';
+ if(message==='Automatic base refresh failed and the original changes remain in the Git stash; operator recovery is required')return '自动更新基准分支失败，原始修改仍保存在 Git stash 中。请管理员人工恢复后再操作，勿重复推送。';
  return message;
 }
 export async function runner(env:any,path:string,body?:any){
