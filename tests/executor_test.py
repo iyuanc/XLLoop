@@ -70,6 +70,7 @@ class TestGateway(unittest.TestCase):
     marker=project_root/'web'/'.git'/'xlloop-develop-owner.json';marker.write_text(json.dumps({'runId':'run-two','head':published['commit']}),encoding='utf-8')
     g.prepare_development({'id':'develop-2','project':'project-one','task':'develop','runId':'run-two'},g.registry['project-one'])
     self.assertEqual((project_root/'web'/'README.md').read_text(encoding='utf-8'),'changed again')
+    self.assertEqual((project_root/'web'/'BASE.md').read_text(encoding='utf-8'),'latest base before development')
     updated=g.publish_repository({'project':'project-one','repositoryId':'web','message':'继续完善测试修改','approved':True})
     self.assertEqual(updated['status'],'published');self.assertNotEqual(updated['commit'],published['commit'])
     remote_head=subprocess.run(['git','ls-remote','--heads',str(source),'refs/heads/xlloop/project-web'],check=True,capture_output=True,text=True).stdout.split()[0]

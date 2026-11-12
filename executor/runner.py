@@ -94,7 +94,9 @@ class Gateway:
     if marker.is_file():
      try: owner=json.loads(marker.read_text(encoding='utf-8'))
      except (OSError,json.JSONDecodeError): owner={}
-    if dirty and not (isinstance(owner,dict) and owner.get('runId')==body.get('runId') and owner.get('head')==original_head) and not (not marker.exists() and allow_dirty_retry): raise SafeJobError('开发前仓库存在不属于本次运行的未提交改动')
+    continues_current_run=dirty and ((isinstance(owner,dict) and owner.get('runId')==body.get('runId') and owner.get('head')==original_head) or (not marker.exists() and allow_dirty_retry))
+    if dirty and not continues_current_run: raise SafeJobError('开发前仓库存在不属于本次运行的未提交改动')
+    if continues_current_run: continue
     self.git(target,'fetch','--no-tags','origin',base)
     if self.git_process(target,'merge-base','--is-ancestor','origin/'+base,'HEAD').returncode==0: continue
     stash_commit=''
