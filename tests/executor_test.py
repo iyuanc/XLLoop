@@ -52,6 +52,12 @@ class TestGateway(unittest.TestCase):
     self.assertEqual(published['branch'],'xlloop/project-web');self.assertEqual(len(published['commit']),40)
     remote=subprocess.run(['git','ls-remote','--heads',str(source),'refs/heads/xlloop/project-web'],check=True,capture_output=True,text=True).stdout
     self.assertIn('refs/heads/xlloop/project-web',remote)
-    with self.assertRaises(ValueError):g.publish_repository({'project':'project-one','repositoryId':'web','message':'重复提交','approved':True})
+    repeated=g.publish_repository({'project':'project-one','repositoryId':'web','message':'确认已推送','approved':True})
+    self.assertEqual(repeated['status'],'already_published');self.assertEqual(repeated['commit'],published['commit'])
+    (project_root/'web'/'README.md').write_text('changed again',encoding='utf-8')
+    updated=g.publish_repository({'project':'project-one','repositoryId':'web','message':'继续完善测试修改','approved':True})
+    self.assertEqual(updated['status'],'published');self.assertNotEqual(updated['commit'],published['commit'])
+    remote_head=subprocess.run(['git','ls-remote','--heads',str(source),'refs/heads/xlloop/project-web'],check=True,capture_output=True,text=True).stdout.split()[0]
+    self.assertEqual(remote_head,updated['commit'])
    finally:g.pool.shutdown(wait=True)
 unittest.main()

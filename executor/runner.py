@@ -144,10 +144,13 @@ class Gateway:
    if self.git(target,'remote','get-url','origin').strip()!=expected: raise ValueError('Repository remote does not match configuration')
    if self.git(target,'diff','--name-only','--diff-filter=U').strip(): raise ValueError('Repository has unresolved conflicts')
    remote=self.git_process(target,'ls-remote','--exit-code','--heads','origin','refs/heads/'+work)
-   if remote.returncode==0: raise ValueError('Remote working branch already exists; configure a new xlloop/* branch before publishing again')
-   if remote.returncode not in (2,): raise ValueError((remote.stderr or 'Unable to verify remote working branch')[-1500:])
+   if remote.returncode not in (0,2): raise ValueError((remote.stderr or 'Unable to verify remote working branch')[-1500:])
    self.git(target,'fetch','--no-tags','origin',base)
    if self.git_process(target,'merge-base','--is-ancestor','origin/'+base,'HEAD').returncode: raise ValueError('Working branch is not based on the configured remote base branch')
+   remote_commit=''
+   if remote.returncode==0:
+    self.git(target,'fetch','--no-tags','origin',work)
+    remote_commit=self.git(target,'rev-parse','FETCH_HEAD').strip()
    dirty=bool(self.git(target,'status','--porcelain').strip())
    if dirty:
     self.git(target,'add','-A','--','.')
@@ -157,10 +160,13 @@ class Gateway:
    elif self.git_process(target,'diff','--quiet','origin/'+base,'HEAD').returncode==0:
     raise ValueError('Repository has no changes to publish')
    commit=self.git(target,'rev-parse','HEAD').strip()
-   self.git(target,'push','--porcelain','origin','HEAD:refs/heads/'+work,timeout=300)
+   if remote_commit and remote_commit!=commit and self.git_process(target,'merge-base','--is-ancestor',remote_commit,commit).returncode:
+    raise ValueError('Remote working branch has changes that are not in the local checkout; synchronize or use a new xlloop/* branch')
+   status='already_published' if remote_commit==commit else 'published'
+   if status=='published': self.git(target,'push','--porcelain','origin','HEAD:refs/heads/'+work,timeout=300)
    row.update(head=commit[:12],dirty=False,remotePublished=True,publishedAt=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),publishedCommit=commit)
    self.save_registry()
-  return {'project':project,'repositoryId':repo_id,'branch':work,'commit':commit,'message':message.strip(),'status':'published'}
+  return {'project':project,'repositoryId':repo_id,'branch':work,'commit':commit,'message':message.strip(),'status':status}
  def capabilities(self, project):
   p=self.project(project)
   return sorted({c for task,v in p.get('tasks',{}).items() if task in CAPS and v.get('command') for c in CAPS[task]})

@@ -32,3 +32,12 @@ nav{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#334a50 transparent;min
 .orgconsole .simple-form select{font-size:16px;min-height:46px;width:100%;padding:10px;border:1px solid #dce6d2;border-radius:8px;background:white;color:#335529}.orgconsole .simple-form input,.orgconsole .simple-form select{min-width:0}
 
 .launch-checklist{display:grid;gap:10px;margin:18px 0}.launch-checklist>div{display:grid;gap:7px;padding:14px;border:1px solid #e0e6da;border-radius:8px;background:#fafcf8}.launch-checklist b{font-size:13px;color:#526c49;overflow-wrap:anywhere}.launch-checklist span{font-size:11px;color:#8a987f}.launch-console .simple-section-heading{flex-wrap:wrap;gap:10px}.launch-console .feedback-actions .button{min-height:44px}.launch-console .simple-disclosure .simple-form textarea{font-size:16px}.launch-console .simple-disclosure>p{line-height:1.9}.launch-console h2{line-height:1.6}
+
+/* Keep Agent operation feedback visible at the current scroll position. */
+.agentprompt{z-index:200;align-items:center;justify-content:center;padding:20px}
+.agentprompt-dialog{width:min(440px,100%);background:#fff;border:1px solid #e2e8df;border-radius:14px;padding:28px;box-shadow:0 20px 70px #10251d38;text-align:center}
+.agentprompt-dialog>svg{color:#b27b32;background:#fff4e4;border-radius:50%;padding:8px;width:44px;height:44px}
+.agentprompt-dialog h2{font-size:19px;margin:16px 0 8px;color:#273d32}
+.agentprompt-dialog p{font-size:13px;line-height:1.8;color:#6f7d72;white-space:pre-wrap;overflow-wrap:anywhere}
+.agentprompt-dialog .feedback-actions{justify-content:center;margin:22px 0 0}
+.agentprompt-dialog .button{min-width:96px}
