@@ -22,6 +22,7 @@ export async function guard(req:Request,env:any,handler:(req:Request)=>Promise<R
    if(b.action==='settings')assertPermission(g,'agent.settings');
    else if(b.action==='memory')assertPermission(g,'experiment');
    else if(b.action==='check')assertPermission(g,'agent.execute');
+   else if(b.action==='manualPublish')assertPermission(g,'architecture');
    else if(b.action==='create'){assertPermission(g,'agent.plan');withinBudget(g,b.budget);if(!['analysis','plan'].includes(b.scope)){assertPermission(g,'agent.execute');assertPermission(g,'execution.tech');}}
    else {const row=await env.DB.prepare('SELECT payload FROM agent_state WHERE id=?').bind(p.ownerId+':'+project).first();const run=row?JSON.parse(row.payload).runs.find((r:any)=>r.id===b.runId):null;if(!run)throw new AccessError('运行不存在',400);const task=run.tasks.find((t:any)=>!['completed','manual'].includes(t.status));if(isInternal(p.workspace.data,project)&&task?.capabilities?.includes('marketing'))throw new AccessError('内部项目旧推广计划需重建为内部流程');
     if(['pause','cancel','reject'].includes(b.action)){if(!allowed(g,'agent.execute')&&!allowed(g,'agent.plan'))throw new AccessError('无权控制此运行');}

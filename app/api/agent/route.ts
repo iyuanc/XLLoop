@@ -26,6 +26,19 @@ async function publishWorkBranches(uid:string,project:string,run:Run){
  for(const repo of publishable){const result=await runner(env,'/v1/repositories/publish',{project,repositoryId:repo.id,message,approved:true,approvalSource:'saved_project_auto_publish'});published.push(result);}
  return {summary:published.length?`已自动提交并推送 ${published.length} 个工作分支。`:'没有需要自动推送的仓库。',evidence:[...published.map(item=>`${item.repositoryId}: ${item.branch} @ ${String(item.commit).slice(0,12)}`),...skipped].join('\n')||'所有已授权仓库均无待推送修改。',cost:0,artifacts:[],metrics:{published:published.map(item=>({repositoryId:item.repositoryId,branch:item.branch,commit:item.commit})),skipped}};
 }
+async function manuallyPublishWorkBranches(uid:string,project:string,message:string){
+ if(message.length<2||message.length>200||/[\r\n]/.test(message)||!/[\u4e00-\u9fff]/.test(message))throw Error('请填写 2 至 200 个字符的单行中文提交说明');
+ const row=await env.DB!.prepare('SELECT payload FROM project_state WHERE id=?').bind(uid+':architecture:'+project).first<any>();
+ const architecture=normalizeArchitecture(row?JSON.parse(row.payload):architectureDefaults());
+ const configured=architecture.repositories.filter((repo:any)=>repo.enabled!==false&&repo.access==='edit');
+ if(!configured.length)throw Error('项目没有可手动推送的可编辑仓库');
+ const status=await runner(env,'/v1/repositories?project='+encodeURIComponent(project));const liveRows=Array.isArray(status?.repositories)?status.repositories:[];
+ const publishable:any[]=[];const skipped:string[]=[];
+ for(const repo of configured){const live=liveRows.find((item:any)=>item.id===repo.id);if(!live)throw Error(`仓库 ${repo.id} 尚未同步到执行器`);if(live.remotePublished){skipped.push(`${repo.id} 已推送`);continue}if(!live.dirty&&!(Number(live.ahead)>0)){skipped.push(`${repo.id} 无待推送修改`);continue}publishable.push(repo);}
+ if(!publishable.length)throw Error('没有待提交或待推送的工作分支');
+ const published=[] as any[];for(const repo of publishable)published.push(await runner(env,'/v1/repositories/publish',{project,repositoryId:repo.id,message,approved:true,approvalSource:'manual_run_publish'}));
+ return {published,skipped};
+}
 async function handleGET(req:Request){try{const p=new URL(req.url).searchParams.get('project');const uid=await identity(req,p);const saved=await read(env.DB,uid,p!);return json(saved);}catch(e:any){return json({error:e.message==='AUTH'?'请登录后使用执行系统':'项目不可用'},e.message==='AUTH'?401:400)}}
 async function handlePOST(req:Request){
  try{
@@ -43,7 +56,9 @@ async function handlePOST(req:Request){
  const caps=await capabilities(env,b.project);data.connection=caps;
  }else{
  const run:Run=data.runs.find((r:Run)=>r.id===b.runId);if(!run)throw Error('运行不存在');let task=current(run);
- if(b.action==='start'||b.action==='resume'){
+ if(b.action==='manualPublish'){
+ if(run.status!=='completed')throw Error('只有已完成运行才能手动推送');const publishTask=run.tasks.find(t=>t.id==='publish');if(publishTask?.result?.metrics?.reason!=='delivery_not_automatically_verified')throw Error('当前运行没有可手动接管的已跳过推送步骤');const message=clean(b.message,200);const result=await manuallyPublishWorkBranches(uid,b.project,message);publishTask.status='manual';publishTask.error='';publishTask.result={summary:`已人工确认并推送 ${result.published.length} 个工作分支。`,evidence:[...result.published.map((item:any)=>`${item.repositoryId}: ${item.branch} @ ${String(item.commit).slice(0,12)}`),...result.skipped].join('\n'),cost:0,artifacts:[],metrics:{manualPublish:true,published:result.published.map((item:any)=>({repositoryId:item.repositoryId,branch:item.branch,commit:item.commit})),skipped:result.skipped}};log(run,'用户人工确认并推送工作分支；未合并 master/main，也未部署。','用户');
+ }else if(b.action==='start'||b.action==='resume'){
  if(!['planned','paused','blocked'].includes(run.status))throw Error('当前状态不能启动');if(task?.status==='unknown')throw Error('有状态不明的外部任务，请先核对执行结果');run.status='running';if(task?.status==='blocked')task.status='pending';log(run,'用户启动 / 恢复执行','用户');
  }else if(b.action==='pause'){
  if(['completed','cancelled'].includes(run.status))throw Error('运行已经结束');run.status='paused';log(run,'已暂停后续派发；已派发的外部任务仍可能运行，需要到执行器终止。','用户');
