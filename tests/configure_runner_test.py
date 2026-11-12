@@ -65,6 +65,8 @@ with tempfile.TemporaryDirectory() as directory:
             str(config_path),
             "--python",
             sys.executable,
+            "--claude-adapter",
+            str(ROOT / "executor" / "claude_code.py"),
             "--registry",
             str(registry_path),
             "--env-file",
@@ -79,11 +81,15 @@ with tempfile.TemporaryDirectory() as directory:
     assert registry["project-one"]["cwd"] == "/mnt/data500/xlloop/worktrees/project-one"
     assert registry["project-one"]["repositories"][0]["path"] == "/mnt/data500/xlloop/worktrees/project-one/web"
     assert "OPENAI_API_KEY" not in config["projects"]["ybirds"]["env_allowlist"]
-    assert "analysis" not in config["projects"]["ybirds"]["tasks"]
+    assert "SSL_CERT_FILE" in config["projects"]["ybirds"]["env_allowlist"]
+    assert config["projects"]["ybirds"]["tasks"]["spec"]["command"][1].endswith("claude_code.py")
     assert "OPENAI_MODEL" not in registry["project-one"]["env_allowlist"]
+    assert "SSL_CERT_FILE" in registry["project-one"]["env_allowlist"]
+    assert registry["project-one"]["tasks"]["spec"]["command"][1].endswith("claude_code.py")
     assert "analysis" not in registry["project-one"]["tasks"]
     env_text = env_path.read_text(encoding="utf-8")
     assert "OPENAI_API_KEY" not in env_text
     assert "ANTHROPIC_API_KEY=keep-me" in env_text
+    assert "SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt" in env_text
 
 print("PASS: storage paths migrate and legacy OpenAI configuration is removed")

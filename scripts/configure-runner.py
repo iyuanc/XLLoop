@@ -27,6 +27,7 @@ CLAUDE_ENV = [
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_BASE_URL",
     "ANTHROPIC_VERSION",
+    "SSL_CERT_FILE",
     "CLAUDE_MODEL",
     "CLAUDE_INPUT_USD_PER_1M",
     "CLAUDE_OUTPUT_USD_PER_1M",
@@ -100,6 +101,8 @@ def remove_openai_env_file(path: Path) -> None:
     original = path.stat()
     pattern = re.compile(r"^\s*(?:export\s+)?OPENAI_[A-Z0-9_]+\s*=")
     lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not pattern.match(line)]
+    if not any(re.match(r"^\s*(?:export\s+)?SSL_CERT_FILE\s*=", line) for line in lines):
+        lines.append("SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt")
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", dir=path.parent, delete=False
     ) as handle:
@@ -123,6 +126,26 @@ def atomic_json(path: Path, data: dict) -> None:
     if hasattr(os, "chown"):
         os.chown(temporary, original.st_uid, original.st_gid)
     os.replace(temporary, path)
+
+
+def configure_claude(projects: dict, python: str, adapter: str | None) -> None:
+    if not adapter:
+        return
+    for project in projects.values():
+        if not isinstance(project, dict):
+            continue
+        allowlist = project.setdefault("env_allowlist", [])
+        if not isinstance(allowlist, list):
+            allowlist = []
+        project["env_allowlist"] = list(dict.fromkeys([*allowlist, *CLAUDE_ENV]))
+        tasks = project.setdefault("tasks", {})
+        if not isinstance(tasks, dict):
+            tasks = {}
+            project["tasks"] = tasks
+        for task in CLAUDE_TASKS:
+            task_config = tasks.setdefault(task, {})
+            if isinstance(task_config, dict) and not task_config.get("command"):
+                task_config["command"] = [python, adapter]
 
 
 def main() -> None:
@@ -156,16 +179,7 @@ def main() -> None:
         value = str(project.get(key) or "")
         if value.startswith("Fill the exact"):
             project[key] = ""
-    allowlist = project.setdefault("env_allowlist", [])
-    project["env_allowlist"] = list(
-        dict.fromkeys([*allowlist, *(CLAUDE_ENV if args.claude_adapter else [])])
-    )
-    tasks = project.setdefault("tasks", {})
-    if args.claude_adapter:
-        for task in CLAUDE_TASKS:
-            task_config = tasks.setdefault(task, {})
-            if not task_config.get("command"):
-                task_config["command"] = [args.python, args.claude_adapter]
+    configure_claude(projects, args.python, args.claude_adapter)
 
     atomic_json(path, config)
     if args.registry:
@@ -176,6 +190,7 @@ def main() -> None:
                 raise ValueError("Dynamic project registry must be a JSON object")
             migrate_worktree_paths(registry)
             remove_legacy_openai(registry)
+            configure_claude(registry, args.python, args.claude_adapter)
             atomic_json(registry_path, registry)
     if args.env_file:
         remove_openai_env_file(Path(args.env_file))

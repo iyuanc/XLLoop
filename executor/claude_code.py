@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 from decimal import Decimal, InvalidOperation
@@ -517,6 +518,12 @@ def api_request(path: str, payload: dict, *, inference: bool) -> dict:
             raise TokenCountUnavailable(f"Claude Token 计数接口不可用（HTTP {exc.code}）") from None
         raise AdapterError(f"Claude Token 计数失败（HTTP {exc.code}）：{message}") from None
     except (URLError, TimeoutError) as exc:
+        reason = getattr(exc, "reason", exc)
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            raise AdapterError(
+                "Claude TLS 证书校验失败；请为执行器配置 CentOS 系统 CA："
+                "SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt"
+            ) from exc
         if inference:
             raise ProviderStateUnknown("Claude 请求状态未知，请核对供应商用量后再重试") from exc
         raise TokenCountUnavailable("Claude Token 计数服务不可用") from exc

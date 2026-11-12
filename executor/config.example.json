@@ -24,6 +24,7 @@
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_BASE_URL",
         "ANTHROPIC_VERSION",
+        "SSL_CERT_FILE",
         "CLAUDE_MODEL",
         "CLAUDE_INPUT_USD_PER_1M",
         "CLAUDE_OUTPUT_USD_PER_1M",
