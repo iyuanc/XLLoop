@@ -44,6 +44,9 @@ install -d -o xlloop -g xlloop -m 750 \
   /mnt/data500/xlloop/worktrees \
   /mnt/data500/xlloop/runtime \
   /mnt/data500/xlloop/logs
+install -d -o xlloop -g xlloop -m 700 \
+  /mnt/data500/xlloop/runtime/runner-home/.config/pnpm \
+  /mnt/data500/xlloop/runtime/runner-home/.local/share/pnpm
 install -d -o root -g xlloop -m 750 /mnt/data500/xlloop/analytics
 install -d -o root -g xlloop -m 750 /opt/xlloop/runner
 install -d -o root -g xlloop -m 750 /etc/xlloop
@@ -160,7 +163,11 @@ filesystem links are platform-specific.
 
 ```bash
 chown -R xlloop:xlloop /opt/xlloop/app/releases/<release-id>
-sudo -u xlloop -H bash -lc '
+sudo -u xlloop env \
+  HOME=/mnt/data500/xlloop/runtime/runner-home \
+  XDG_CONFIG_HOME=/mnt/data500/xlloop/runtime/runner-home/.config \
+  XDG_DATA_HOME=/mnt/data500/xlloop/runtime/runner-home/.local/share \
+  PNPM_HOME=/mnt/data500/xlloop/runtime/runner-home/.local/share/pnpm bash -lc '
   cd /opt/xlloop/app/releases/<release-id>
   pnpm install --frozen-lockfile
   pnpm build

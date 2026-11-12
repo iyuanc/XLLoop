@@ -92,7 +92,7 @@ def repositories(workspace: Path) -> list[dict]:
 
 
 def command_environment() -> dict[str, str]:
-    allowed = ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "NODE_ENV"]
+    allowed = ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "NODE_ENV", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PNPM_HOME"]
     result = {key: os.environ[key] for key in allowed if key in os.environ}
     result["CI"] = "1"
     return result

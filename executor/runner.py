@@ -197,7 +197,7 @@ class Gateway:
   job_id=body['id']; self.update(job_id,'running'); proc=None
   try:
    # Provider secrets are selected by the administrator, never supplied by a job.
-   allowed=['PATH','HOME','LANG','TMPDIR']+p.get('env_allowlist',[])
+   allowed=['PATH','HOME','LANG','TMPDIR','XDG_CONFIG_HOME','XDG_DATA_HOME','PNPM_HOME']+p.get('env_allowlist',[])
    env={k:os.environ[k] for k in allowed if k in os.environ}
    env.update(XLLOOP_JOB_ID=job_id,XLLOOP_PROJECT=body['project'],XLLOOP_MAX_ADDITIONAL_COST=str(body['budget']['maxAdditionalCost']))
    if p.get('repositories'): env['XLLOOP_REPOSITORIES_JSON']=json.dumps(p['repositories'],ensure_ascii=False)

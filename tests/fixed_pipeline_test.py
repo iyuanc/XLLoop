@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory() as directory:
                     "build": [
                         sys.executable,
                         "-c",
-                        "from pathlib import Path; p=Path('.build-count'); p.write_text(str(int(p.read_text())+1) if p.exists() else '1'); assert Path('result.txt').read_text() == 'changed\\n'",
+                        "import os; from pathlib import Path; p=Path('.build-count'); p.write_text(str(int(p.read_text())+1) if p.exists() else '1'); assert Path('result.txt').read_text() == 'changed\\n'; assert Path(os.environ['XDG_CONFIG_HOME']).parts[-2:] == ('runner-home', '.config')",
                     ]
                 }
             ),
@@ -69,6 +69,10 @@ with tempfile.TemporaryDirectory() as directory:
                     }
                 ]
             ),
+            "HOME": str(workspace / "runner-home"),
+            "XDG_CONFIG_HOME": str(workspace / "runner-home" / ".config"),
+            "XDG_DATA_HOME": str(workspace / "runner-home" / ".local" / "share"),
+            "PNPM_HOME": str(workspace / "runner-home" / ".local" / "share" / "pnpm"),
         }
     )
 

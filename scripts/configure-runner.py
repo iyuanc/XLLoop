@@ -95,7 +95,7 @@ def remove_legacy_openai(projects: dict) -> None:
             tasks.pop("analysis", None)
 
 
-def update_env_file(path: Path, runtime_path: str | None = None) -> None:
+def update_env_file(path: Path, runtime_path: str | None = None, runtime_home: str | None = None) -> None:
     if not path.is_file():
         return
     original = path.stat()
@@ -106,6 +106,19 @@ def update_env_file(path: Path, runtime_path: str | None = None) -> None:
     if runtime_path:
         lines = [line for line in lines if not re.match(r"^\s*(?:export\s+)?PATH\s*=", line)]
         lines.append(f"PATH={runtime_path}")
+    if runtime_home:
+        if not runtime_home.startswith("/mnt/data500/xlloop/runtime/") or any(value in runtime_home for value in ("\n", "\r")):
+            raise ValueError("Runner runtime home must be inside /mnt/data500/xlloop/runtime")
+        names = ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PNPM_HOME")
+        lines = [line for line in lines if not any(re.match(rf"^\s*(?:export\s+)?{name}\s*=", line) for name in names)]
+        lines.extend(
+            [
+                f"HOME={runtime_home}",
+                f"XDG_CONFIG_HOME={runtime_home}/.config",
+                f"XDG_DATA_HOME={runtime_home}/.local/share",
+                f"PNPM_HOME={runtime_home}/.local/share/pnpm",
+            ]
+        )
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", dir=path.parent, delete=False
     ) as handle:
@@ -175,6 +188,7 @@ def main() -> None:
     parser.add_argument("--pipeline-adapter")
     parser.add_argument("--env-file")
     parser.add_argument("--runtime-path")
+    parser.add_argument("--runtime-home")
     parser.add_argument("--registry")
     args = parser.parse_args()
 
@@ -216,7 +230,7 @@ def main() -> None:
             configure_pipeline(registry, args.python, args.pipeline_adapter)
             atomic_json(registry_path, registry)
     if args.env_file:
-        update_env_file(Path(args.env_file), args.runtime_path)
+        update_env_file(Path(args.env_file), args.runtime_path, args.runtime_home)
 
 
 if __name__ == "__main__":

@@ -75,6 +75,8 @@ with tempfile.TemporaryDirectory() as directory:
             str(env_path),
             "--runtime-path",
             "/opt/node/bin:/usr/local/bin:/usr/bin:/bin",
+            "--runtime-home",
+            "/mnt/data500/xlloop/runtime/runner-home",
         ],
         check=True,
     )
@@ -101,5 +103,8 @@ with tempfile.TemporaryDirectory() as directory:
     assert "ANTHROPIC_API_KEY=keep-me" in env_text
     assert "SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt" in env_text
     assert "PATH=/opt/node/bin:/usr/local/bin:/usr/bin:/bin" in env_text
+    assert "HOME=/mnt/data500/xlloop/runtime/runner-home" in env_text
+    assert "XDG_CONFIG_HOME=/mnt/data500/xlloop/runtime/runner-home/.config" in env_text
+    assert "PNPM_HOME=/mnt/data500/xlloop/runtime/runner-home/.local/share/pnpm" in env_text
 
 print("PASS: storage paths migrate and legacy OpenAI configuration is removed")

@@ -9,6 +9,10 @@ User=xlloop
 Group=xlloop
 WorkingDirectory=/opt/xlloop/runner
 EnvironmentFile=/etc/xlloop/runner.env
+Environment=HOME=/mnt/data500/xlloop/runtime/runner-home
+Environment=XDG_CONFIG_HOME=/mnt/data500/xlloop/runtime/runner-home/.config
+Environment=XDG_DATA_HOME=/mnt/data500/xlloop/runtime/runner-home/.local/share
+Environment=PNPM_HOME=/mnt/data500/xlloop/runtime/runner-home/.local/share/pnpm
 ExecStart=/usr/bin/env python3.14 /opt/xlloop/runner/runner.py --config /etc/xlloop/runner-config.json --registry /mnt/data500/xlloop/runtime/projects.json --db /mnt/data500/xlloop/runtime/jobs.sqlite --host 127.0.0.1 --port 8788
 Restart=on-failure
 RestartSec=3s

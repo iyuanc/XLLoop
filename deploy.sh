@@ -11,6 +11,7 @@ RUNNER_DIR="/opt/xlloop/runner"
 ADAPTER_DIR="/opt/xlloop/adapters"
 DATA_ROOT="/mnt/data500/xlloop"
 RUNTIME_DIR="${DATA_ROOT}/runtime"
+PNPM_RUNTIME_HOME="${RUNTIME_DIR}/runner-home"
 WORKTREE_DIR="${DATA_ROOT}/worktrees"
 ANALYTICS_DIR="${DATA_ROOT}/analytics"
 LOG_DIR="${DATA_ROOT}/logs"
@@ -90,6 +91,10 @@ install -d -o "${APP_USER}" -g "${APP_USER}" -m 700 \
 install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 \
   "${DATA_ROOT}" "${RUNTIME_DIR}" "${WORKTREE_DIR}" \
   "${WORKTREE_DIR}/ybirds" "${LOG_DIR}"
+install -d -o "${APP_USER}" -g "${APP_USER}" -m 700 \
+  "${PNPM_RUNTIME_HOME}" "${PNPM_RUNTIME_HOME}/.config" \
+  "${PNPM_RUNTIME_HOME}/.config/pnpm" "${PNPM_RUNTIME_HOME}/.local" \
+  "${PNPM_RUNTIME_HOME}/.local/share" "${PNPM_RUNTIME_HOME}/.local/share/pnpm"
 install -d -o root -g "${APP_USER}" -m 750 "${ANALYTICS_DIR}"
 install -d -o root -g "${APP_USER}" -m 750 "${RUNNER_DIR}" "${ADAPTER_DIR}"
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
@@ -138,6 +143,7 @@ fi
   --pipeline-adapter "${ADAPTER_DIR}/fixed_pipeline.py" \
   --env-file "${RUNNER_ENV}" \
   --runtime-path "${RUNNER_PATH}" \
+  --runtime-home "${PNPM_RUNTIME_HOME}" \
   --registry "${RUNTIME_DIR}/projects.json"
 install -o root -g root -m 644 \
   "${APP_DIR}/deploy/systemd/xlloop-runner.service" \
@@ -145,11 +151,17 @@ install -o root -g root -m 644 \
 systemctl daemon-reload
 
 echo "[4/8] 安装依赖"
-runuser -u "${APP_USER}" -- env HOME="${APP_HOME}" \
+runuser -u "${APP_USER}" -- env HOME="${PNPM_RUNTIME_HOME}" \
+  XDG_CONFIG_HOME="${PNPM_RUNTIME_HOME}/.config" \
+  XDG_DATA_HOME="${PNPM_RUNTIME_HOME}/.local/share" \
+  PNPM_HOME="${PNPM_RUNTIME_HOME}/.local/share/pnpm" \
   "${PNPM_BIN}" --dir "${APP_DIR}" install --frozen-lockfile
 
 echo "[5/8] 构建生产版本"
-runuser -u "${APP_USER}" -- env HOME="${APP_HOME}" \
+runuser -u "${APP_USER}" -- env HOME="${PNPM_RUNTIME_HOME}" \
+  XDG_CONFIG_HOME="${PNPM_RUNTIME_HOME}/.config" \
+  XDG_DATA_HOME="${PNPM_RUNTIME_HOME}/.local/share" \
+  PNPM_HOME="${PNPM_RUNTIME_HOME}/.local/share/pnpm" \
   "${PNPM_BIN}" --dir "${APP_DIR}" build
 
 if [[ ! -f "${APP_DIR}/.next/standalone/server.js" ]]; then
