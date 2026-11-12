@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
 CAPS = {
- 'analysis':['model','analytics'], 'spec':['model'], 'develop':['model','repository'],
+ 'analysis':['model'], 'spec':['model'], 'develop':['model','repository'],
  'review':['model','repository'], 'test':['ci'], 'preview':['preview'], 'deploy':['deploy'],
  'cdn':['cdn'], 'recovery':['rollback'], 'growth':['marketing'],
  'feedback':['model','analytics'], 'retro':['model']}

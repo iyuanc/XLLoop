@@ -35,6 +35,13 @@ class ClaudeFixture(BaseHTTPRequestHandler):
                 self.wfile.write(raw)
                 return
             payload = {"input_tokens": 100}
+        elif self.path == "/v1/messages" and body["model"] == "claude-analysis-fixture":
+            payload = {
+                "id": "msg_analysis_final",
+                "content": [{"type": "text", "text": json.dumps({"verdict": "exists", "summary": "代码返回值与目标不一致。", "evidence": "sample.py 第2行返回 1。"}, ensure_ascii=False)}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 90, "output_tokens": 20},
+            }
         elif self.path == "/v1/messages" and body["model"] == "claude-develop-fixture":
             self.__class__.develop_round += 1
             if self.__class__.develop_round == 1:
@@ -93,6 +100,7 @@ def adapter_env(port):
             "CLAUDE_CACHE_READ_USD_PER_1M": "0.1",
             "CLAUDE_CACHE_WRITE_USD_PER_1M": "1.25",
             "CLAUDE_DEVELOP_MODEL": "claude-develop-fixture",
+            "CLAUDE_ANALYSIS_MODEL": "claude-analysis-fixture",
             "CLAUDE_REVIEW_MODEL": "claude-review-fixture",
             "CLAUDE_SPEC_MODEL": "claude-spec-fixture",
             "CLAUDE_MAX_OUTPUT_TOKENS": "256",
@@ -159,6 +167,10 @@ with tempfile.TemporaryDirectory() as directory:
         assert specified["metrics"]["token_count_fallbacks"] == 1
         assert specified["metrics"]["provider"] == "anthropic"
         ClaudeFixture.count_available = True
+        diagnosed = run_adapter(repo, "analysis", env)
+        assert diagnosed["status"] == "succeeded", diagnosed
+        assert diagnosed["metrics"]["diagnosis"] == "exists"
+        assert diagnosed["summary"].startswith("诊断结论：问题存在")
         developed = run_adapter(repo, "develop", env)
         assert developed["status"] == "succeeded", developed
         assert developed["metrics"]["provider"] == "anthropic"

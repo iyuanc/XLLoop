@@ -1,11 +1,11 @@
 export type Task={id:string,name:string,role:string,capabilities:string[],gate:boolean,status:string,attempt:number,jobId?:string,result?:any,error?:string,approved?:boolean};
 export type Run={id:string,requestId:string,command:string,scope:string,status:string,created:string,updated:string,budget:number,spent:number,iterations:number,maxIterations:number,maxRetries:number,version:string,settings:any,memory:any[],tasks:Task[],events:any[]};
 export const scopes:any={analysis:'仅分析',plan:'生成方案',preview:'执行至预览',full:'完整闭环（上线与推广需审批）'};
-export const roles=[['总控','目标拆解与依赖推进'],['数据与运营','业务分析与问题诊断'],['产品','需求、实验与验收标准'],['开发','隔离环境修改源码'],['审查与测试','代码检查与业务验收'],['发布','CI/CD、预览、缓存与恢复'],['增长','渠道、素材与效果归因'],['效果','指标、成本与下一轮建议']];
+export const roles=[['总控','目标拆解与依赖推进'],['数据与运营','问题诊断与证据核验'],['产品','需求、实验与验收标准'],['开发','隔离环境修改源码'],['审查与测试','代码检查与业务验收'],['发布','CI/CD、预览、缓存与恢复'],['增长','渠道、素材与效果归因'],['效果','指标、成本与下一轮建议']];
 export function defaults(){return {settings:{objective:'',repo:'',environment:'',analytics:'',cdn:'',channels:'',owner:'待分配',deadline:'',currency:'USD',maxRetries:2,maxIterations:30},memory:[],runs:[]};}
 export function log(run:Run,message:string,actor='系统'){run.updated=new Date().toISOString();run.events=[...run.events,{at:run.updated,message,actor}].slice(-200);}
 export function plan(command:string,scope:string,budget:number,settings:any,memory:any[],requestId:string):Run{
- const rows:any[]=[['readiness','项目盘点与证据检查','总控',[],false],['analysis','业务数据分析与问题诊断','数据与运营',['model','analytics'],false]];
+ const rows:any[]=[['readiness','项目盘点与证据检查','总控',[],false],['analysis','问题诊断','数据与运营',['model'],false]];
  if(scope!=='analysis')rows.push(['spec','产品方案、实验与验收规格','产品',['model'],false]);
  if(['preview','full'].includes(scope))rows.push(['develop','AI 开发与隔离分支修改','开发',['model','repository'],false],['review','独立代码审查与安全检查','审查与测试',['model','repository'],false],['test','CI 构建与业务流程测试','审查与测试',['ci'],false],['preview','生成预览与验收报告','发布',['preview'],false],['publish','提交并推送工作分支','发布',['repository'],false]);
  if(scope==='full')rows.push(['deploy','灰度部署与上线验证','发布',['deploy'],true],['cdn','CDN 缓存与性能验证','发布',['cdn'],false],['recovery','回滚路径与恢复验证','发布',['rollback'],true],['growth','小范围推广与归因追踪','增长',['marketing'],true],['feedback','A/B 效果、性能与成本评估','效果',['model','analytics'],false],['retro','复盘与下一轮优化建议','效果',['model'],false]);

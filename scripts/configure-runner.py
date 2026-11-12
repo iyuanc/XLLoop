@@ -22,7 +22,7 @@ LEGACY_OPENAI_ENV = {
     "OPENAI_TIMEOUT_SECONDS",
 }
 
-CLAUDE_TASKS = ("spec", "develop", "review", "retro")
+CLAUDE_TASKS = ("analysis", "spec", "develop", "review", "retro")
 PIPELINE_TASKS = ("test", "preview")
 CLAUDE_ENV = [
     "ANTHROPIC_API_KEY",

@@ -7,7 +7,7 @@ class TestGateway(unittest.TestCase):
    p={'cwd':d,'repo':'authorized','environment':'staging','max_cost_per_job':20,'tasks':{'analysis':{'command':[sys.executable,str(script)]},'deploy':{'command':[sys.executable,str(script)]}}}
    g=m.Gateway({'projects':{'ybirds':p}},str(pathlib.Path(d)/'jobs.sqlite'))
    try:
-    self.assertIn('analytics',g.capabilities('ybirds'))
+    self.assertIn('model',g.capabilities('ybirds'));self.assertNotIn('analytics',g.capabilities('ybirds'))
     b={'id':'fixture-id','project':'ybirds','task':'analysis','command':'Fixture test','settings':{'repo':'authorized','environment':'staging'},'budget':{'maxAdditionalCost':1}}
     self.assertEqual(g.submit(b)[0],202)
     for _ in range(100):

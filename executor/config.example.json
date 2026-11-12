@@ -33,6 +33,12 @@
         "CLAUDE_MAX_OUTPUT_TOKENS",
         "CLAUDE_TIMEOUT_SECONDS",
         "CLAUDE_MAX_AGENT_STEPS",
+        "CLAUDE_ANALYSIS_MODEL",
+        "CLAUDE_ANALYSIS_INPUT_USD_PER_1M",
+        "CLAUDE_ANALYSIS_OUTPUT_USD_PER_1M",
+        "CLAUDE_ANALYSIS_CACHE_READ_USD_PER_1M",
+        "CLAUDE_ANALYSIS_CACHE_WRITE_USD_PER_1M",
+        "CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS",
         "CLAUDE_SPEC_MODEL",
         "CLAUDE_SPEC_INPUT_USD_PER_1M",
         "CLAUDE_SPEC_OUTPUT_USD_PER_1M",
@@ -69,6 +75,12 @@
         "XLLOOP_REQUIRED_TEST_CHECKS"
       ],
       "tasks": {
+        "analysis": {
+          "command": [
+            "/usr/bin/python3.14",
+            "/opt/xlloop/adapters/claude_code.py"
+          ]
+        },
         "spec": {
           "command": [
             "/usr/bin/python3.14",

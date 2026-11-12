@@ -5,7 +5,7 @@
 ## 部署
 
 1. 在隔离的执行主机安装 Python 3.11+，复制 config.example.json 为受保护的 config.json。为每个项目指定独立工作目录、仓库和业务范围。
-2. 在 `tasks` 中配置经管理员审查的固定 Agent 命令数组。本包包含 Claude 代码任务适配器，以及零模型费用的 CI / 构建预览验收适配器；业务分析默认转人工，其它公司 Agent 仍需单独实现。不要让请求中的自然语言直接作为 shell 命令。
+2. 在 `tasks` 中配置经管理员审查的固定 Agent 命令数组。本包包含 Claude 问题诊断与代码任务适配器，以及零模型费用的 CI / 构建预览验收适配器；其它公司 Agent 仍需单独实现。不要让请求中的自然语言直接作为 shell 命令。
 3. 通过主机密钥管理配置 `XLLOOP_RUNNER_TOKEN`（至少 32 字符），将模型和业务工具凭据只提供给所需任务的隔离环境，并列入 `env_allowlist`。不要把密钥写入网站项目记忆、仓库或运行日志。
 4. 启动：`python3 runner.py --config /secure/config.json --db /persistent/jobs.sqlite`。默认仅绑定 127.0.0.1:8788；使用 HTTPS 反向代理及访问控制，不要直接向公网开放 HTTP。
 5. 在 XLLoop 网站服务端配置 `XLLOOP_RUNNER_URL` 和同一个 `XLLOOP_RUNNER_TOKEN`。同机部署可使用 `http://127.0.0.1:8788`；非本机地址必须使用 HTTPS。在“项目记忆”填写与管理员配置完全一致的目标，在“工具接入”检查能力。
@@ -47,7 +47,7 @@ SQLite 先写作业，再执行。相同 id 和相同请求只执行一次；同
 
 ## Claude 代码开发与审查适配器
 
-`claude_code.py` 支持 spec、develop、review、retro，并可按任务配置不同模型。开发仅允许在管理员准备的隔离 Git 工作目录中运行，分支必须使用 `xlloop/` 前缀；main、master、production、release 默认受保护。review 只有读取、检索、查看差异和运行固定检查的权限。
+`claude_code.py` 支持 analysis、spec、develop、review、retro，并可按任务配置不同模型。analysis 只读检查授权仓库，返回 `exists`、`not_exists` 或 `unknown` 以及可复核证据；没有业务数据时仍可诊断代码，证据不足必须返回 `unknown`。开发仅允许在管理员准备的隔离 Git 工作目录中运行，分支必须使用 `xlloop/` 前缀；main、master、production、release 默认受保护。analysis 和 review 只有读取、检索、查看差异和运行固定检查的权限。
 
 可用 `XLLOOP_ALLOWED_BRANCHES` 再配置精确分支白名单。适配器本身不提供 commit、push、分支切换、部署或任意 shell 工具。开发完成后先保留未提交 diff 和验证证据；只有具备技术配置权限的人员在网页再次确认，网关才为单个仓库提交并推送新的 `xlloop/*` 分支。合并与上线继续由 GitLab 和发布流程单独审批。密钥只放在 `/etc/xlloop/runner.env`，可用 `CLAUDE_DEVELOP_MODEL`、`CLAUDE_REVIEW_MODEL` 等变量分别选模型。对应的输入、输出及缓存费率必须按供应商当前价格填写。
 

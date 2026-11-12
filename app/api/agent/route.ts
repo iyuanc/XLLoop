@@ -13,7 +13,7 @@ const clean=(v:any,n=3000)=>typeof v==='string'?v.trim().slice(0,n):'';
 async function publishWorkBranches(uid:string,project:string,run:Run){
  const required=['develop','review','test','preview'];const delivery=required.map(id=>run.tasks.find(t=>t.id===id));
  if(delivery.some(t=>!t))throw Error('运行缺少自动推送所需的交付步骤，请按最新配置重建计划');
- const incomplete=delivery.filter(t=>t!.status!=='completed');
+ const incomplete=delivery.filter(t=>t!.status!=='completed'||t!.result?.metrics?.skipped===true);
  if(incomplete.length)return {summary:'自动推送已跳过。',evidence:'以下步骤不是执行器自动成功状态：'+incomplete.map(t=>`${t!.name}（${t!.status}）`).join('、')+'。人工完成、失败或状态不明的运行不得自动推送。',cost:0,artifacts:[],metrics:{skipped:true,reason:'delivery_not_automatically_verified'}};
  const row=await env.DB!.prepare('SELECT payload FROM project_state WHERE id=?').bind(uid+':architecture:'+project).first<any>();
  const architecture=normalizeArchitecture(row?JSON.parse(row.payload):architectureDefaults());
@@ -66,8 +66,6 @@ async function handlePOST(req:Request){
  else if(task.gate&&!task.approved){task.status='awaiting_approval';run.status='awaiting_approval';log(run,'等待用户审批：'+task.name);}
  else if(task.id==='readiness'){
  const row=await env.DB!.prepare('SELECT payload FROM project_state WHERE id=?').bind(uid+':'+b.project).first<any>();const saved=row?JSON.parse(row.payload):{records:[]};task.status='completed';task.result=audit(saved.records||[],run.settings,run.memory);run.iterations++;log(run,'已完成项目记录盘点；未把示例记录当作英鸟真实运营数据。');
- }else if(task.id==='analysis'&&!String(run.settings.analytics||'').trim()){
- task.status='completed';task.error='';task.result={summary:'未配置业务数据，本步骤已跳过。',evidence:'运行快照中的“分析数据源与指标口径”为空；未调用外部执行器或大模型。',cost:0,artifacts:[],metrics:{skipped:true,reason:'missing_business_data'}};run.iterations++;log(run,'未配置业务数据，已跳过业务数据分析步骤；未产生模型费用。');
  }else if(task.id==='publish'){
  task.attempt++;run.iterations++;try{task.result=await publishWorkBranches(uid,b.project,run);task.status='completed';task.error='';log(run,task.result.metrics?.skipped?'自动推送步骤已安全跳过：'+task.result.evidence:'工作分支已自动提交并推送；未合并 master/main，也未部署。','系统');if(!current(run)){run.status='completed';log(run,'本次授权范围内的步骤已完成。');}}catch(e:any){task.status='failed';task.error=String(e.message||'自动推送失败').slice(0,1000);run.status='failed';log(run,'自动推送失败：'+task.error,'系统');}
  }else{
@@ -78,7 +76,7 @@ async function handlePOST(req:Request){
  let result:any;let error='';let budgetDenied=false;try{result=await runner(env,poll?'/v1/jobs/'+encodeURIComponent(jobId):'/v1/jobs',poll?undefined:{id:jobId,project:b.project,runId:run.id,task:task.id,role:task.role,command:run.command,scope:run.scope,settings:run.settings,memory:run.memory.slice(0,20).map((m:any)=>({type:m.type,text:String(m.text).slice(0,1000),source:String(m.source||'').slice(0,500)})),previous:run.tasks.filter(t=>t.result).map(t=>({task:t.id,result:{summary:String(t.result.summary||'').slice(0,1500),evidence:String(t.result.evidence||'').slice(0,1000),artifacts:t.result.artifacts?.slice(0,5)}})),budget:{currency:'USD',maxAdditionalCost:Math.max(0,run.budget-run.spent)},approval:task.approved?{approved:true,at:run.updated}:null});}catch(e:any){error=e.message;budgetDenied=e.budgetDenied===true;}
  const latest=await read(env.DB,uid,b.project);const liveRun:Run=latest.data.runs.find((r:Run)=>r.id===snapshot.id);const live=liveRun?.tasks.find(t=>t.id===taskId);if(!liveRun||!live||live.jobId!==jobId||['completed','manual','failed'].includes(live.status))return json(latest);
  if(budgetDenied){live.status='blocked';live.jobId=undefined;live.error=error;liveRun.status='blocked';log(liveRun,'预算未批准，未派发：'+error);}else if(error){live.status='unknown';live.error='执行状态未确认：'+error; if(!['cancelled','paused'].includes(liveRun.status))liveRun.status='blocked';log(liveRun,live.error+'；请核对同一任务，禁止盲目重新派发。');}
- else{const oldStatus=liveRun.status;try{consumeResult(liveRun,live,result);}catch(e:any){live.status='unknown';live.error=e.message;liveRun.status='blocked';log(liveRun,e.message);}if(['cancelled','paused'].includes(oldStatus))liveRun.status=oldStatus;}
+ else{const oldStatus=liveRun.status;try{consumeResult(liveRun,live,result);if(live.id==='analysis'&&live.status==='completed'){const verdict=live.result?.metrics?.diagnosis;if(verdict==='not_exists'){for(const remaining of liveRun.tasks.slice(liveRun.tasks.indexOf(live)+1)){remaining.status='completed';remaining.error='';remaining.result={summary:'问题诊断未发现问题，后续步骤已跳过。',evidence:'问题诊断结论为 not_exists；未修改代码、未推送分支、未部署。',cost:0,artifacts:[],metrics:{skipped:true,reason:'diagnosis_not_exists'}};}liveRun.status='completed';log(liveRun,'问题诊断结论：问题不存在；本轮流程通过并结束，未执行代码修改或发布。','执行器');}else if(verdict==='unknown'){liveRun.status='paused';log(liveRun,'问题诊断证据不足，已暂停后续步骤；补充复现条件或证据后请重建计划。','执行器');}else if(verdict==='exists'){log(liveRun,'问题诊断结论：问题存在；继续产品、开发与验证流程。','执行器');}}}catch(e:any){live.status='unknown';live.error=e.message;liveRun.status='blocked';log(liveRun,e.message);}if(['cancelled','paused'].includes(oldStatus))liveRun.status=oldStatus;}
  const revision=await write(env.DB,uid,b.project,latest.data,latest.revision);return json({data:latest.data,revision});
  }
  }
