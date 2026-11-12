@@ -116,9 +116,8 @@ echo "[3/8] 安装并配置执行器"
 install -o root -g "${APP_USER}" -m 750 \
   "${APP_DIR}/executor/runner.py" "${RUNNER_DIR}/runner.py"
 install -o root -g "${APP_USER}" -m 750 \
-  "${APP_DIR}/executor/openai_analysis.py" "${ADAPTER_DIR}/openai_analysis.py"
-install -o root -g "${APP_USER}" -m 750 \
   "${APP_DIR}/executor/claude_code.py" "${ADAPTER_DIR}/claude_code.py"
+rm -f "${ADAPTER_DIR}/openai_analysis.py"
 if [[ ! -f "${RUNNER_CONFIG}" ]]; then
   install -o root -g "${APP_USER}" -m 640 \
     "${APP_DIR}/executor/config.example.json" "${RUNNER_CONFIG}"
@@ -126,8 +125,8 @@ fi
 "${PYTHON_BIN}" "${APP_DIR}/scripts/configure-runner.py" \
   --config "${RUNNER_CONFIG}" \
   --python "${PYTHON_BIN}" \
-  --adapter "${ADAPTER_DIR}/openai_analysis.py" \
   --claude-adapter "${ADAPTER_DIR}/claude_code.py" \
+  --env-file "${RUNNER_ENV}" \
   --registry "${RUNTIME_DIR}/projects.json"
 install -o root -g root -m 644 \
   "${APP_DIR}/deploy/systemd/xlloop-runner.service" \

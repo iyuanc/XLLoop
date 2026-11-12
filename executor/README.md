@@ -5,7 +5,7 @@
 ## 部署
 
 1. 在隔离的执行主机安装 Python 3.11+，复制 config.example.json 为受保护的 config.json。为每个项目指定独立工作目录、仓库和业务范围。
-2. 在 `tasks` 中配置经管理员审查的固定 Agent 命令数组。本包包含 OpenAI 业务分析与 Claude 代码任务适配器；其它公司 Agent 仍需单独实现。不要让请求中的自然语言直接作为 shell 命令。
+2. 在 `tasks` 中配置经管理员审查的固定 Agent 命令数组。本包仅包含 Claude 代码任务适配器；业务分析默认转人工，其它公司 Agent 仍需单独实现。不要让请求中的自然语言直接作为 shell 命令。
 3. 通过主机密钥管理配置 `XLLOOP_RUNNER_TOKEN`（至少 32 字符），将模型和业务工具凭据只提供给所需任务的隔离环境，并列入 `env_allowlist`。不要把密钥写入网站项目记忆、仓库或运行日志。
 4. 启动：`python3 runner.py --config /secure/config.json --db /persistent/jobs.sqlite`。默认仅绑定 127.0.0.1:8788；使用 HTTPS 反向代理及访问控制，不要直接向公网开放 HTTP。
 5. 在 XLLoop 网站服务端配置 `XLLOOP_RUNNER_URL` 和同一个 `XLLOOP_RUNNER_TOKEN`。同机部署可使用 `http://127.0.0.1:8788`；非本机地址必须使用 HTTPS。在“项目记忆”填写与管理员配置完全一致的目标，在“工具接入”检查能力。

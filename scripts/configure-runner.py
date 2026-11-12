@@ -6,21 +6,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
 OLD_WORKTREE_ROOT = "/srv/xlloop/worktrees"
 WORKTREE_ROOT = "/mnt/data500/xlloop/worktrees"
 
-OPENAI_ENV = [
+LEGACY_OPENAI_ENV = {
     "OPENAI_API_KEY",
     "OPENAI_MODEL",
     "OPENAI_INPUT_USD_PER_1M",
     "OPENAI_OUTPUT_USD_PER_1M",
     "OPENAI_CACHED_INPUT_USD_PER_1M",
     "OPENAI_TIMEOUT_SECONDS",
-    "XLLOOP_ANALYTICS_FILE",
-]
+}
 
 CLAUDE_TASKS = ("spec", "develop", "review", "retro")
 CLAUDE_ENV = [
@@ -74,6 +74,43 @@ def migrate_worktree_paths(projects: dict) -> None:
                 repository["path"] = WORKTREE_ROOT + path[len(OLD_WORKTREE_ROOT) :]
 
 
+def remove_legacy_openai(projects: dict) -> None:
+    for project in projects.values():
+        if not isinstance(project, dict):
+            continue
+        allowlist = project.get("env_allowlist", [])
+        if isinstance(allowlist, list):
+            project["env_allowlist"] = [
+                value for value in allowlist if value not in LEGACY_OPENAI_ENV
+            ]
+        tasks = project.get("tasks")
+        if not isinstance(tasks, dict):
+            continue
+        analysis = tasks.get("analysis")
+        command = analysis.get("command", []) if isinstance(analysis, dict) else []
+        if isinstance(command, list) and any(
+            "openai_analysis.py" in str(value) for value in command
+        ):
+            tasks.pop("analysis", None)
+
+
+def remove_openai_env_file(path: Path) -> None:
+    if not path.is_file():
+        return
+    original = path.stat()
+    pattern = re.compile(r"^\s*(?:export\s+)?OPENAI_[A-Z0-9_]+\s*=")
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not pattern.match(line)]
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, delete=False
+    ) as handle:
+        handle.write("\n".join(lines).rstrip() + "\n")
+        temporary = Path(handle.name)
+    os.chmod(temporary, original.st_mode)
+    if hasattr(os, "chown"):
+        os.chown(temporary, original.st_uid, original.st_gid)
+    os.replace(temporary, path)
+
+
 def atomic_json(path: Path, data: dict) -> None:
     original = path.stat()
     with tempfile.NamedTemporaryFile(
@@ -92,8 +129,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--python", required=True)
-    parser.add_argument("--adapter", required=True)
     parser.add_argument("--claude-adapter")
+    parser.add_argument("--env-file")
     parser.add_argument("--registry")
     args = parser.parse_args()
 
@@ -114,18 +151,16 @@ def main() -> None:
     if not current_cwd or current_cwd.startswith("/absolute/path/"):
         project["cwd"] = WORKTREE_ROOT + "/ybirds"
     migrate_worktree_paths(projects)
+    remove_legacy_openai(projects)
     for key in ("repo", "environment", "analytics", "cdn", "channels"):
         value = str(project.get(key) or "")
         if value.startswith("Fill the exact"):
             project[key] = ""
     allowlist = project.setdefault("env_allowlist", [])
     project["env_allowlist"] = list(
-        dict.fromkeys([*allowlist, *OPENAI_ENV, *(CLAUDE_ENV if args.claude_adapter else [])])
+        dict.fromkeys([*allowlist, *(CLAUDE_ENV if args.claude_adapter else [])])
     )
     tasks = project.setdefault("tasks", {})
-    analysis = tasks.setdefault("analysis", {})
-    if not analysis.get("command"):
-        analysis["command"] = [args.python, args.adapter]
     if args.claude_adapter:
         for task in CLAUDE_TASKS:
             task_config = tasks.setdefault(task, {})
@@ -140,7 +175,10 @@ def main() -> None:
             if not isinstance(registry, dict):
                 raise ValueError("Dynamic project registry must be a JSON object")
             migrate_worktree_paths(registry)
+            remove_legacy_openai(registry)
             atomic_json(registry_path, registry)
+    if args.env_file:
+        remove_openai_env_file(Path(args.env_file))
 
 
 if __name__ == "__main__":
